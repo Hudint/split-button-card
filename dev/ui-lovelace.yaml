@@ -41,6 +41,65 @@ views:
         buttons:
           - { name: A, icon: mdi:alpha-a }
           - { name: B, icon: mdi:alpha-b }
+  - title: Features
+    path: features
+    type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: button
+            entity: light.ceiling_lights
+          - type: custom:split-button-card
+            buttons:
+              - entity: light.ceiling_lights
+              - entity: light.bed_light
+              - entity: light.living_room_rgbww_lights
+                name: Sofa
+          - type: custom:split-button-card
+            state_background: true
+            buttons:
+              - entity: light.ceiling_lights
+              - entity: light.kitchen_lights
+              - entity: switch.decorative_lights
+                name: Deko
+          - type: custom:split-button-card
+            buttons:
+              - entity: light.ceiling_lights
+                state_color: false
+              - entity: light.kitchen_lights
+                color: purple
+                state_background: true
+                background_opacity: 0.35
+              - name: Alarm
+                icon: mdi:alarm-light
+                color: red
+                state_background: true
+                tap_action: { action: toggle }
+                double_tap_action: { action: toggle }
+          - type: custom:split-button-card
+            columns: 3
+            buttons:
+              - entity: light.ceiling_lights
+                span: 2
+              - entity: light.bed_light
+                row_span: 2
+              - entity: light.kitchen_lights
+              - entity: switch.decorative_lights
+                name: Deko
+              - entity: switch.ac
+                span: 3
+          - type: custom:split-button-card
+            columns: 2
+            divider: gap
+            state_background: true
+            buttons:
+              - entity: light.kitchen_lights
+                show_state: true
+              - entity: light.office_rgbw_lights
+                show_state: true
+              - entity: cover.kitchen_window
+                show_state: true
+                span: 2
   - title: Sections
     path: sections
     type: sections
@@ -55,6 +114,12 @@ views:
             buttons:
               - entity: light.bed_light
               - entity: light.ceiling_lights
+          - type: custom:split-button-card
+            buttons:
+              - entity: light.bed_light
+              - entity: light.ceiling_lights
+              - name: Szene
+                icon: mdi:palette
           - type: custom:split-button-card
             columns: 2
             buttons:

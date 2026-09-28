@@ -9,7 +9,7 @@ import type {
   SplitButtonCardConfig,
 } from "./types";
 
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.2.0";
 
 const DIVIDER_MODES: DividerMode[] = ["border", "line", "gap", "none"];
 
@@ -62,6 +62,12 @@ export class SplitButtonCard extends LitElement {
       if (button.entity && !/^\w+\.\w+$/.test(button.entity)) {
         throw new Error(`buttons[${i}]: invalid entity '${button.entity}'`);
       }
+      for (const key of ["span", "row_span"] as const) {
+        const value = button[key];
+        if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+          throw new Error(`buttons[${i}]: '${key}' must be a positive integer`);
+        }
+      }
     });
 
     this._config = config;
@@ -71,6 +77,10 @@ export class SplitButtonCard extends LitElement {
       show_name: config.show_name ?? true,
       show_state: config.show_state ?? false,
       icon_height: config.icon_height,
+      color: config.color,
+      state_color: config.state_color,
+      state_background: config.state_background ?? false,
+      background_opacity: config.background_opacity,
       tap_action: defaultTapAction(button.entity),
       hold_action: { action: "more-info" },
       double_tap_action: { action: "none" },
@@ -82,19 +92,56 @@ export class SplitButtonCard extends LitElement {
     return this._config?.columns ?? this._segments.length;
   }
 
+  private _span(segment: SegmentConfig): number {
+    return Math.min(segment.span ?? 1, this._columns);
+  }
+
+  // Rows the grid needs, following CSS grid's auto-placement (no "dense").
   private get _rows(): number {
-    return Math.ceil(this._segments.length / this._columns);
+    const columns = this._columns;
+    const occupied: boolean[][] = [];
+    const isFree = (row: number, col: number, span: number, rowSpan: number) => {
+      for (let r = row; r < row + rowSpan; r++) {
+        for (let c = col; c < col + span; c++) {
+          if (occupied[r]?.[c]) return false;
+        }
+      }
+      return true;
+    };
+    let cursorRow = 0;
+    let cursorCol = 0;
+    let rows = 0;
+    for (const segment of this._segments) {
+      const span = this._span(segment);
+      const rowSpan = segment.row_span ?? 1;
+      while (cursorCol + span > columns || !isFree(cursorRow, cursorCol, span, rowSpan)) {
+        cursorCol++;
+        if (cursorCol + span > columns) {
+          cursorCol = 0;
+          cursorRow++;
+        }
+      }
+      for (let r = cursorRow; r < cursorRow + rowSpan; r++) {
+        occupied[r] = occupied[r] ?? [];
+        for (let c = cursorCol; c < cursorCol + span; c++) occupied[r][c] = true;
+      }
+      rows = Math.max(rows, cursorRow + rowSpan);
+      cursorCol += span;
+    }
+    return Math.max(rows, 1);
   }
 
   public getCardSize(): number {
     return this._rows * 3;
   }
 
+  // Same footprint as the native button card (6 columns x 2 rows) for
+  // every row of segments, so a single-row card replaces a button 1:1.
   public getGridOptions() {
     return {
-      columns: 12,
+      columns: 6,
       rows: this._rows * 2,
-      min_columns: 3,
+      min_columns: 2,
       min_rows: this._rows,
     };
   }
@@ -131,6 +178,10 @@ export class SplitButtonCard extends LitElement {
           ${this._segments.map(
             (segment) => html`
               <split-button-segment
+                style=${styleMap({
+                  "grid-column": `span ${this._span(segment)}`,
+                  "grid-row": `span ${segment.row_span ?? 1}`,
+                })}
                 .hass=${this.hass}
                 .config=${segment}
               ></split-button-segment>

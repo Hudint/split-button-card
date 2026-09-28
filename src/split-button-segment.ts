@@ -2,6 +2,8 @@ import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { styleMap } from "lit/directives/style-map.js";
+import { ActionHandler, type Action } from "./action-handler";
+import { computeStateColor, stateActive, stateColorBrightness } from "./state-color";
 import type { ActionConfig, HomeAssistant, SegmentConfig } from "./types";
 
 // Domains the native button card toggles on tap (frontend DOMAINS_TOGGLE).
@@ -32,6 +34,8 @@ export class SplitButtonSegment extends LitElement {
 
   @property({ attribute: false }) public config!: SegmentConfig;
 
+  private _actionHandler?: ActionHandler;
+
   // Only re-render when the entity this segment shows actually changed.
   protected shouldUpdate(changed: PropertyValues<this>): boolean {
     if (changed.size !== 1 || !changed.has("hass")) return true;
@@ -48,7 +52,22 @@ export class SplitButtonSegment extends LitElement {
     const stateObj = config.entity ? this.hass?.states[config.entity] : undefined;
     const name = config.name ?? stateObj?.attributes.friendly_name ?? "";
     const clickable = hasAction(config.tap_action);
-    const iconStyle = styleMap({ height: config.icon_height });
+
+    // Same rule as the native button: state_color: false turns the colored
+    // icon off unless an explicit color is set.
+    const iconColor =
+      config.color || config.state_color !== false
+        ? computeStateColor(stateObj, config.color)
+        : undefined;
+    const backgroundColor =
+      config.state_background && (!stateObj || stateActive(stateObj))
+        ? computeStateColor(stateObj, config.color)
+        : undefined;
+
+    const iconStyle = styleMap({
+      height: config.icon_height,
+      filter: stateObj && iconColor ? stateColorBrightness(stateObj) : undefined,
+    });
 
     return html`
       <div
@@ -56,9 +75,16 @@ export class SplitButtonSegment extends LitElement {
         role="button"
         aria-label=${name}
         tabindex=${ifDefined(clickable ? "0" : undefined)}
-        @click=${this._handleTap}
-        @keydown=${this._handleKeyDown}
+        style=${styleMap({
+          "--state-color": iconColor,
+          "--sbc-background-color": backgroundColor,
+          "--sbc-background-opacity":
+            config.background_opacity !== undefined
+              ? String(config.background_opacity)
+              : undefined,
+        })}
       >
+        ${backgroundColor ? html`<div class="background"></div>` : nothing}
         <ha-ripple .disabled=${!clickable}></ha-ripple>
         ${config.show_icon
           ? stateObj
@@ -87,21 +113,30 @@ export class SplitButtonSegment extends LitElement {
     `;
   }
 
-  private _handleTap(): void {
-    if (!hasAction(this.config.tap_action)) return;
+  protected updated(): void {
+    const segment = this.renderRoot.querySelector<HTMLElement>(".segment");
+    if (!segment) return;
+    if (!this._actionHandler) {
+      this._actionHandler = new ActionHandler(segment, (action) =>
+        this._handleAction(action)
+      );
+    }
+    this._actionHandler.options = {
+      hasHold: hasAction(this.config.hold_action),
+      hasDoubleClick: hasAction(this.config.double_tap_action),
+    };
+  }
+
+  private _handleAction(action: Action): void {
+    const actionConfig = this.config[`${action}_action`];
+    if (!hasAction(actionConfig)) return;
     this.dispatchEvent(
       new CustomEvent("hass-action", {
         bubbles: true,
         composed: true,
-        detail: { config: this.config, action: "tap" },
+        detail: { config: this.config, action },
       })
     );
-  }
-
-  private _handleKeyDown(ev: KeyboardEvent): void {
-    if (ev.key !== "Enter" && ev.key !== " ") return;
-    ev.preventDefault();
-    this._handleTap();
   }
 
   static styles = css`
@@ -113,6 +148,7 @@ export class SplitButtonSegment extends LitElement {
     }
 
     .segment {
+      --state-inactive-color: var(--state-icon-color);
       --state-color: var(--state-icon-color);
       --ha-ripple-color: var(--state-color);
       --ha-ripple-hover-opacity: 0.04;
@@ -134,20 +170,38 @@ export class SplitButtonSegment extends LitElement {
       cursor: pointer;
       outline: none;
       -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .segment:not([tabindex]) {
       cursor: default;
     }
 
+    .background {
+      position: absolute;
+      inset: 0;
+      background: var(--sbc-background-color);
+      opacity: var(--sbc-background-opacity, 0.2);
+      pointer-events: none;
+      transition: background-color 180ms ease-in-out;
+    }
+
     .segment:focus-visible {
       box-shadow: inset 0 0 0 2px var(--state-color);
+    }
+
+    /* Keep content above the absolutely positioned background layer. */
+    .icon,
+    span {
+      position: relative;
     }
 
     .icon {
       width: 40%;
       height: auto;
       max-height: 80%;
+      min-height: 0;
       color: var(--state-color);
       --mdc-icon-size: 100%;
       transition: transform 180ms ease-in-out;
@@ -164,11 +218,18 @@ export class SplitButtonSegment extends LitElement {
     }
 
     span {
+      flex-shrink: 0;
       max-width: 100%;
-      overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      hyphens: auto;
+      overflow-wrap: break-word;
     }
 
     .state {
+      -webkit-line-clamp: 1;
       font-size: 0.9rem;
       color: var(--secondary-text-color);
     }
