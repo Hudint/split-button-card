@@ -18,6 +18,7 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 - Dividers that match the card border by default, or short lines, gaps or nothing.
 - State coloring of icon and/or background, with custom colors and opacity.
 - `tap_action`, `hold_action` and `double_tap_action` with all standard Home Assistant actions.
+- Visual editor: configure everything in the dashboard UI, no YAML needed.
 
 ## Installation
 
@@ -32,6 +33,14 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 2. Settings → Dashboards → ⋮ → *Resources* → add `/local/split-button-card.js` as **JavaScript module**.
 
 ## Configuration
+
+### Visual editor
+
+Add the card via *Add card → Split Button Card* and configure it in the UI. Buttons can be added, reordered, duplicated and removed; each one uses the same entity, icon, color and action pickers as the native button card. Options on the card act as defaults for all buttons.
+
+<img alt="Visual editor" src="docs/editor.png" width="600">
+
+### YAML
 
 ```yaml
 type: custom:split-button-card

@@ -4,7 +4,7 @@ import { ifDefined } from "lit/directives/if-defined.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { ActionHandler, type Action } from "./action-handler";
 import { computeStateColor, stateActive, stateColorBrightness } from "./state-color";
-import type { ActionConfig, HomeAssistant, SegmentConfig } from "./types";
+import type { ActionConfig, HassEntity, HomeAssistant, SegmentConfig } from "./types";
 
 // Domains the native button card toggles on tap (frontend DOMAINS_TOGGLE).
 const DOMAINS_TOGGLE = new Set([
@@ -50,18 +50,19 @@ export class SplitButtonSegment extends LitElement {
     if (!config) return nothing;
 
     const stateObj = config.entity ? this.hass?.states[config.entity] : undefined;
-    const name = config.name ?? stateObj?.attributes.friendly_name ?? "";
+    const name = this._computeName(stateObj);
     const clickable = hasAction(config.tap_action);
 
-    // Same rule as the native button: state_color: false turns the colored
-    // icon off unless an explicit color is set.
-    const iconColor =
-      config.color || config.state_color !== false
-        ? computeStateColor(stateObj, config.color)
-        : undefined;
+    // Same rules as the native button: "state" is the default coloring,
+    // "none" (or state_color: false without a color) disables it.
+    const color = config.color === "state" ? undefined : config.color;
+    const noColor = color === "none" || (!color && config.state_color === false);
+    const iconColor = noColor ? undefined : computeStateColor(stateObj, color);
     const backgroundColor =
-      config.state_background && (!stateObj || stateActive(stateObj))
-        ? computeStateColor(stateObj, config.color)
+      config.state_background &&
+      color !== "none" &&
+      (!stateObj || stateActive(stateObj))
+        ? computeStateColor(stateObj, color)
         : undefined;
 
     const iconStyle = styleMap({
@@ -111,6 +112,15 @@ export class SplitButtonSegment extends LitElement {
       <div class="divider right"></div>
       <div class="divider bottom"></div>
     `;
+  }
+
+  private _computeName(stateObj?: HassEntity): string {
+    const name = this.config.name;
+    if (stateObj && this.hass?.formatEntityName) {
+      return this.hass.formatEntityName(stateObj, name);
+    }
+    if (typeof name === "string") return name;
+    return stateObj?.attributes.friendly_name ?? "";
   }
 
   protected updated(): void {

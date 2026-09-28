@@ -7,6 +7,7 @@ export interface HassEntity {
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   formatEntityState?: (stateObj: HassEntity) => string;
+  formatEntityName?: (stateObj: HassEntity, name?: EntityName) => string;
   [key: string]: any;
 }
 
@@ -15,11 +16,14 @@ export interface ActionConfig {
   [key: string]: any;
 }
 
+// Plain string, or the structured name the entity_name selector produces.
+export type EntityName = string | Record<string, unknown> | Record<string, unknown>[];
+
 export type DividerMode = "border" | "line" | "gap" | "none";
 
 export interface SegmentConfig {
   entity?: string;
-  name?: string;
+  name?: EntityName;
   icon?: string;
   show_name?: boolean;
   show_icon?: boolean;

@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
+import { loadHaForm } from "./editor";
 import { defaultTapAction } from "./split-button-segment";
 import type {
   DividerMode,
@@ -9,7 +10,7 @@ import type {
   SplitButtonCardConfig,
 } from "./types";
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.3.0";
 
 const DIVIDER_MODES: DividerMode[] = ["border", "line", "gap", "none"];
 
@@ -24,6 +25,11 @@ export class SplitButtonCard extends LitElement {
   @state() private _config?: SplitButtonCardConfig;
 
   @state() private _segments: SegmentConfig[] = [];
+
+  public static async getConfigElement(): Promise<HTMLElement> {
+    await loadHaForm();
+    return document.createElement("split-button-card-editor");
+  }
 
   public static getStubConfig(hass: HomeAssistant): SplitButtonCardConfig {
     const lights = Object.keys(hass.states)
