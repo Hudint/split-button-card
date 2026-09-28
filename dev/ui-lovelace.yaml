@@ -1,0 +1,64 @@
+title: Split Button Dev
+views:
+  - title: Masonry
+    path: masonry
+    cards:
+      - type: button
+        entity: light.bed_light
+      - type: custom:split-button-card
+        buttons:
+          - entity: light.bed_light
+          - entity: light.ceiling_lights
+          - name: Szene
+            icon: mdi:palette
+      - type: custom:split-button-card
+        columns: 2
+        buttons:
+          - entity: light.kitchen_lights
+          - entity: light.office_rgbw_lights
+          - entity: light.living_room_rgbww_lights
+          - entity: switch.decorative_lights
+      - type: custom:split-button-card
+        divider: line
+        buttons:
+          - name: Hoch
+            icon: mdi:arrow-up
+          - name: Stop
+            icon: mdi:stop
+          - name: Runter
+            icon: mdi:arrow-down
+      - type: custom:split-button-card
+        divider: gap
+        columns: 3
+        buttons:
+          - { name: Eins, icon: mdi:numeric-1 }
+          - { name: Zwei, icon: mdi:numeric-2 }
+          - { name: Drei, icon: mdi:numeric-3 }
+          - { name: Vier, icon: mdi:numeric-4 }
+          - { name: Fünf, icon: mdi:numeric-5 }
+      - type: custom:split-button-card
+        divider: none
+        buttons:
+          - { name: A, icon: mdi:alpha-a }
+          - { name: B, icon: mdi:alpha-b }
+  - title: Sections
+    path: sections
+    type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: button
+            entity: light.bed_light
+          - type: button
+            entity: light.ceiling_lights
+          - type: custom:split-button-card
+            buttons:
+              - entity: light.bed_light
+              - entity: light.ceiling_lights
+          - type: custom:split-button-card
+            columns: 2
+            buttons:
+              - entity: light.kitchen_lights
+              - entity: light.office_rgbw_lights
+              - entity: light.living_room_rgbww_lights
+              - entity: switch.decorative_lights
