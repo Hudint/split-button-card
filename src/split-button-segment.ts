@@ -4,6 +4,7 @@ import { ifDefined } from "lit/directives/if-defined.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { ActionHandler, type Action } from "./action-handler";
 import { computeStateColor, stateActive, stateColorBrightness } from "./state-color";
+import { isTemplate, renderTemplate } from "./templates";
 import type { ActionConfig, HassEntity, HomeAssistant, SegmentConfig } from "./types";
 
 // Domains the native button card toggles on tap (frontend DOMAINS_TOGGLE).
@@ -17,6 +18,11 @@ const DOMAINS_TOGGLE = new Set([
   "humidifier",
   "valve",
 ]);
+
+export const ANIMATIONS = ["bounce", "pulse", "shake", "blink"] as const;
+
+// Options that may be button-card style JavaScript templates.
+const TEMPLATE_KEYS = ["name", "icon", "color", "entity_picture", "state_display"] as const;
 
 const hasAction = (config?: ActionConfig) =>
   config !== undefined && config.action !== "none";
@@ -34,11 +40,16 @@ export class SplitButtonSegment extends LitElement {
 
   @property({ attribute: false }) public config!: SegmentConfig;
 
+  /** Hidden by its visibility conditions, but shown while editing. */
+  @property({ type: Boolean, reflect: true }) public dimmed = false;
+
   private _actionHandler?: ActionHandler;
 
   // Only re-render when the entity this segment shows actually changed.
+  // Templates can read any entity, so segments using them always update.
   protected shouldUpdate(changed: PropertyValues<this>): boolean {
     if (changed.size !== 1 || !changed.has("hass")) return true;
+    if (TEMPLATE_KEYS.some((key) => isTemplate(this.config?.[key]))) return true;
     const entity = this.config?.entity;
     if (!entity) return false;
     const oldHass = changed.get("hass") as HomeAssistant | undefined;
@@ -46,11 +57,11 @@ export class SplitButtonSegment extends LitElement {
   }
 
   protected render() {
-    const config = this.config;
-    if (!config) return nothing;
+    if (!this.config) return nothing;
 
-    const stateObj = config.entity ? this.hass?.states[config.entity] : undefined;
-    const name = this._computeName(stateObj);
+    const stateObj = this.config.entity ? this.hass?.states[this.config.entity] : undefined;
+    const config = this._resolveTemplates(stateObj);
+    const name = this._computeName(config.name, stateObj);
     const clickable = hasAction(config.tap_action);
 
     // Same rules as the native button: "state" is the default coloring,
@@ -65,14 +76,25 @@ export class SplitButtonSegment extends LitElement {
         ? computeStateColor(stateObj, color)
         : undefined;
 
+    const picture =
+      config.entity_picture ||
+      (config.show_entity_picture ? stateObj?.attributes.entity_picture : undefined);
+
+    const stateText =
+      config.state_display !== undefined && config.state_display !== null
+        ? String(config.state_display)
+        : stateObj
+          ? (this.hass?.formatEntityState?.(stateObj) ?? stateObj.state)
+          : undefined;
+
     const iconStyle = styleMap({
       height: config.icon_height,
-      filter: stateObj && iconColor ? stateColorBrightness(stateObj) : undefined,
+      filter: stateObj && iconColor && !picture ? stateColorBrightness(stateObj) : undefined,
     });
 
     return html`
       <div
-        class="segment"
+        class="segment ${config.animation ? `animate-${config.animation}` : ""}"
         role="button"
         aria-label=${name}
         tabindex=${ifDefined(clickable ? "0" : undefined)}
@@ -87,26 +109,10 @@ export class SplitButtonSegment extends LitElement {
       >
         ${backgroundColor ? html`<div class="background"></div>` : nothing}
         <ha-ripple .disabled=${!clickable}></ha-ripple>
-        ${config.show_icon
-          ? stateObj
-            ? html`<ha-state-icon
-                class="icon"
-                .hass=${this.hass}
-                .stateObj=${stateObj}
-                .icon=${config.icon}
-                style=${iconStyle}
-              ></ha-state-icon>`
-            : html`<ha-icon
-                class="icon"
-                .icon=${config.icon}
-                style=${iconStyle}
-              ></ha-icon>`
-          : nothing}
-        ${config.show_name ? html`<span .title=${name}>${name}</span>` : nothing}
-        ${config.show_state && stateObj
-          ? html`<span class="state">
-              ${this.hass?.formatEntityState?.(stateObj) ?? stateObj.state}
-            </span>`
+        ${config.show_icon ? this._renderIcon(config, stateObj, picture, iconStyle) : nothing}
+        ${config.show_name ? html`<span class="name" .title=${name}>${name}</span>` : nothing}
+        ${config.show_state && stateText !== undefined
+          ? html`<span class="state">${stateText}</span>`
           : nothing}
       </div>
       <div class="divider right"></div>
@@ -114,8 +120,39 @@ export class SplitButtonSegment extends LitElement {
     `;
   }
 
-  private _computeName(stateObj?: HassEntity): string {
-    const name = this.config.name;
+  private _renderIcon(
+    config: SegmentConfig,
+    stateObj: HassEntity | undefined,
+    picture: string | undefined,
+    iconStyle: ReturnType<typeof styleMap>
+  ) {
+    if (picture) {
+      return html`<img class="icon picture" src=${picture} alt="" style=${iconStyle} />`;
+    }
+    if (stateObj) {
+      return html`<ha-state-icon
+        class="icon"
+        .hass=${this.hass}
+        .stateObj=${stateObj}
+        .icon=${config.icon}
+        style=${iconStyle}
+      ></ha-state-icon>`;
+    }
+    return html`<ha-icon class="icon" .icon=${config.icon} style=${iconStyle}></ha-icon>`;
+  }
+
+  /** Config with all JavaScript templates replaced by their result. */
+  private _resolveTemplates(stateObj?: HassEntity): SegmentConfig {
+    const config: SegmentConfig = { ...this.config };
+    for (const key of TEMPLATE_KEYS) {
+      if (isTemplate(config[key])) {
+        (config as any)[key] = renderTemplate(config[key], this.hass, stateObj) ?? undefined;
+      }
+    }
+    return config;
+  }
+
+  private _computeName(name: SegmentConfig["name"], stateObj?: HassEntity): string {
     if (stateObj && this.hass?.formatEntityName) {
       return this.hass.formatEntityName(stateObj, name);
     }
@@ -227,6 +264,20 @@ export class SplitButtonSegment extends LitElement {
       margin-top: 8px;
     }
 
+    .picture {
+      object-fit: contain;
+    }
+
+    .picture[style*="height"] {
+      width: auto;
+      max-width: 90%;
+    }
+
+    .name {
+      font-size: var(--sbc-name-font-size, inherit);
+      font-weight: var(--sbc-name-font-weight, inherit);
+    }
+
     span {
       flex-shrink: 0;
       max-width: 100%;
@@ -240,8 +291,82 @@ export class SplitButtonSegment extends LitElement {
 
     .state {
       -webkit-line-clamp: 1;
-      font-size: 0.9rem;
+      font-size: var(--sbc-state-font-size, 0.9rem);
+      font-weight: var(--sbc-state-font-weight, inherit);
       color: var(--secondary-text-color);
+    }
+
+    .animate-bounce .icon {
+      animation: sbc-bounce 2s ease-in-out infinite;
+    }
+
+    .animate-pulse .icon {
+      animation: sbc-pulse 1.5s ease-in-out infinite;
+    }
+
+    .animate-shake .icon {
+      animation: sbc-shake 1.2s ease-in-out infinite;
+    }
+
+    .animate-blink > :not(.background, ha-ripple) {
+      animation: sbc-blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes sbc-bounce {
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-15%);
+      }
+    }
+
+    @keyframes sbc-pulse {
+      0%,
+      100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.15);
+      }
+    }
+
+    @keyframes sbc-shake {
+      0%,
+      50%,
+      100% {
+        transform: rotate(0);
+      }
+      10%,
+      30% {
+        transform: rotate(-12deg);
+      }
+      20%,
+      40% {
+        transform: rotate(12deg);
+      }
+    }
+
+    @keyframes sbc-blink {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .segment .icon,
+      .segment > * {
+        animation: none !important;
+      }
+    }
+
+    :host([dimmed]) .segment {
+      opacity: 0.4;
     }
 
     /* Dividers sit on the right/bottom edge of every segment. The card

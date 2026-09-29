@@ -1,8 +1,9 @@
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
+import { checkConditionsMet, usesCondition } from "./conditions";
 import { loadHaForm } from "./editor";
-import { defaultTapAction } from "./split-button-segment";
+import { ANIMATIONS, defaultTapAction } from "./split-button-segment";
 import type {
   DividerMode,
   HomeAssistant,
@@ -10,7 +11,7 @@ import type {
   SplitButtonCardConfig,
 } from "./types";
 
-const CARD_VERSION = "0.3.1";
+const CARD_VERSION = "0.4.0";
 
 const DIVIDER_MODES: DividerMode[] = ["border", "line", "gap", "none"];
 
@@ -25,6 +26,20 @@ export class SplitButtonCard extends LitElement {
   @state() private _config?: SplitButtonCardConfig;
 
   @state() private _segments: SegmentConfig[] = [];
+
+  /** Set by the dashboard while editing: hidden buttons are shown dimmed. */
+  @property({ attribute: false }) public editMode = false;
+
+  @property({ type: Boolean }) public preview = false;
+
+  // Keep receiving hass updates while hidden, so the card can reappear.
+  public connectedWhileHidden = true;
+
+  private _shown: { segment: SegmentConfig; visible: boolean }[] = [];
+
+  private _timer?: number;
+
+  private _onResize = () => this.requestUpdate();
 
   public static async getConfigElement(): Promise<HTMLElement> {
     await loadHaForm();
@@ -68,6 +83,15 @@ export class SplitButtonCard extends LitElement {
       if (button.entity && !/^\w+\.\w+$/.test(button.entity)) {
         throw new Error(`buttons[${i}]: invalid entity '${button.entity}'`);
       }
+      if (button.visibility !== undefined && !Array.isArray(button.visibility)) {
+        throw new Error(`buttons[${i}]: 'visibility' must be a list of conditions`);
+      }
+      const animation = button.animation ?? config.animation;
+      if (animation && !(ANIMATIONS as readonly string[]).includes(animation)) {
+        throw new Error(
+          `buttons[${i}]: invalid animation '${animation}', use one of: ${ANIMATIONS.join(", ")}`
+        );
+      }
       for (const key of ["span", "row_span"] as const) {
         const value = button[key];
         if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
@@ -87,15 +111,77 @@ export class SplitButtonCard extends LitElement {
       state_color: config.state_color,
       state_background: config.state_background ?? false,
       background_opacity: config.background_opacity,
+      show_entity_picture: config.show_entity_picture ?? false,
+      animation: config.animation,
+      state_display: config.state_display,
       tap_action: defaultTapAction(button.entity),
       hold_action: { action: "more-info" },
       double_tap_action: { action: "none" },
       ...button,
     }));
+    // Until hass arrives every button counts as visible (for grid sizing).
+    this._shown = this._segments.map((segment) => ({ segment, visible: true }));
+    if (this.isConnected) this._setupListeners();
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this._setupListeners();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._clearListeners();
+  }
+
+  // Screen and time conditions change without a state change in hass.
+  private _setupListeners(): void {
+    this._clearListeners();
+    const conditions = this._segments.flatMap((s) => s.visibility ?? []);
+    if (usesCondition(conditions, ["screen"])) {
+      window.addEventListener("resize", this._onResize);
+    }
+    if (usesCondition(conditions, ["time"])) {
+      this._timer = window.setInterval(() => this.requestUpdate(), 30_000);
+    }
+  }
+
+  private _clearListeners(): void {
+    window.removeEventListener("resize", this._onResize);
+    clearInterval(this._timer);
+    this._timer = undefined;
+  }
+
+  private get _editing(): boolean {
+    return this.editMode || this.preview;
+  }
+
+  protected willUpdate(changed: PropertyValues<this>): void {
+    super.willUpdate(changed);
+    const hass = this.hass;
+    this._shown = this._segments
+      .map((segment) => ({
+        segment,
+        visible:
+          !segment.visibility?.length ||
+          !hass ||
+          checkConditionsMet(segment.visibility, hass, segment.entity),
+      }))
+      .filter(({ visible }) => visible || this._editing);
+  }
+
+  protected updated(changed: PropertyValues<this>): void {
+    super.updated(changed);
+    // Hide the whole card when none of its buttons is visible.
+    const hidden = this._shown.length === 0;
+    if (this.hidden !== hidden) {
+      this.hidden = hidden;
+      this.dispatchEvent(new CustomEvent("card-visibility-changed", { detail: { value: !hidden } }));
+    }
   }
 
   private get _columns(): number {
-    return this._config?.columns ?? this._segments.length;
+    return this._config?.columns ?? Math.max(this._shown.length, 1);
   }
 
   private _span(segment: SegmentConfig): number {
@@ -117,7 +203,7 @@ export class SplitButtonCard extends LitElement {
     let cursorRow = 0;
     let cursorCol = 0;
     let rows = 0;
-    for (const segment of this._segments) {
+    for (const { segment } of this._shown) {
       const span = this._span(segment);
       const rowSpan = segment.row_span ?? 1;
       while (cursorCol + span > columns || !isFree(cursorRow, cursorCol, span, rowSpan)) {
@@ -181,9 +267,10 @@ export class SplitButtonCard extends LitElement {
     return html`
       <ha-card class=${`divider-${divider}`} style=${styleMap(vars)}>
         <div class="grid">
-          ${this._segments.map(
-            (segment) => html`
+          ${this._shown.map(
+            ({ segment, visible }) => html`
               <split-button-segment
+                ?dimmed=${!visible}
                 style=${styleMap({
                   "grid-column": `span ${this._span(segment)}`,
                   "grid-row": `span ${segment.row_span ?? 1}`,
@@ -202,6 +289,10 @@ export class SplitButtonCard extends LitElement {
     :host {
       display: block;
       height: 100%;
+    }
+
+    :host([hidden]) {
+      display: none;
     }
 
     ha-card {

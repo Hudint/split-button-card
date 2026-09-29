@@ -7,6 +7,7 @@ export interface HassEntity {
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   formatEntityState?: (stateObj: HassEntity) => string;
+  user?: { id: string; [key: string]: any };
   formatEntityName?: (stateObj: HassEntity, name?: EntityName) => string;
   [key: string]: any;
 }
@@ -33,6 +34,11 @@ export interface SegmentConfig {
   state_color?: boolean;
   state_background?: boolean;
   background_opacity?: number;
+  entity_picture?: string;
+  show_entity_picture?: boolean;
+  state_display?: string;
+  animation?: string;
+  visibility?: Record<string, any>[];
   span?: number;
   row_span?: number;
   tap_action?: ActionConfig;
@@ -56,4 +62,7 @@ export interface SplitButtonCardConfig {
   state_color?: boolean;
   state_background?: boolean;
   background_opacity?: number;
+  show_entity_picture?: boolean;
+  animation?: string;
+  state_display?: string;
 }

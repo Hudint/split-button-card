@@ -18,6 +18,8 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 - Dividers that match the card border by default, or short lines, gaps or nothing.
 - State coloring of icon and/or background, with custom colors and opacity.
 - `tap_action`, `hold_action` and `double_tap_action` with all standard Home Assistant actions.
+- Per-button visibility conditions: the card hides itself when no button is visible.
+- Custom pictures, JavaScript templates (button-card syntax) and animations per button.
 - Visual editor: configure everything in the dashboard UI, no YAML needed.
 
 ## Installation
@@ -69,7 +71,7 @@ buttons:
 | `gap`                | string  | `8px`             | Spacing for `divider: gap`.                                                                          |
 
 These options can be set on the card as default for all buttons, and overridden per button:
-`show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`.
+`show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`, `show_entity_picture`, `state_display`, `animation`.
 
 ### Button options
 
@@ -86,13 +88,86 @@ These options can be set on the card as default for all buttons, and overridden 
 | `state_color`        | boolean | `true`                                             | Color the icon by state, like the native button.                                                    |
 | `state_background`   | boolean | `false`                                            | Tint the background with the state color while active.                                             |
 | `background_opacity` | number  | `0.2`                                              | Opacity of the background tint.                                                                     |
+| `entity_picture`     | string  |                                                    | Picture URL shown instead of the icon, e.g. `/local/waste/yellow.png`.                              |
+| `show_entity_picture`| boolean | `false`                                            | Show the entity's own picture (e.g. person, media player) instead of the icon.                     |
+| `state_display`      | string  | formatted state                                    | Text shown as state. Plain text or a JavaScript template, see below.                               |
+| `animation`          | string  |                                                    | `bounce`, `pulse`, `shake` or `blink`.                                                              |
+| `visibility`         | list    |                                                    | Conditions like the card [visibility](https://www.home-assistant.io/dashboards/cards/#showing-or-hiding-a-card-conditionally) option. Conditions without `entity` use the button's entity. |
 | `span`               | number  | `1`                                                | Grid columns this button occupies.                                                                  |
 | `row_span`           | number  | `1`                                                | Grid rows this button occupies.                                                                     |
 | `tap_action`         | action  | `toggle` for toggleable entities, else `more-info` | Standard [Home Assistant action](https://www.home-assistant.io/dashboards/actions/).               |
 | `hold_action`        | action  | `more-info`                                        |                                                                                                     |
 | `double_tap_action`  | action  | `none`                                             |                                                                                                     |
 
+### Templates
+
+`name`, `icon`, `color`, `entity_picture` and `state_display` accept JavaScript templates in [button-card](https://github.com/custom-cards/button-card#javascript-templates) syntax, so existing templates can be copied over. Available variables: `entity` (the button's entity), `states`, `hass`, `user`.
+
+```yaml
+state_display: |
+  [[[
+    const days = Number(entity.state);
+    if (days === 0) return "Heute";
+    if (days === 1) return "Morgen";
+    return `in ${days} Tagen`;
+  ]]]
+color: "[[[ return Number(entity.state) === 0 ? 'red' : 'orange'; ]]]"
+```
+
+### Styling
+
+Fonts can be adjusted with CSS variables, e.g. with [card-mod](https://github.com/thomasloven/lovelace-card-mod):
+
+```yaml
+card_mod:
+  style: |
+    ha-card {
+      --sbc-name-font-weight: 600;
+      --sbc-name-font-size: 16px;
+      --sbc-state-font-size: 14px;
+    }
+```
+
+Also available: `--sbc-state-font-weight`.
+
 ## Examples
+
+### Waste collection
+
+Only bins picked up within the next two days are shown; the card disappears when none is due.
+
+```yaml
+type: custom:split-button-card
+show_state: true
+state_background: true
+background_opacity: 1
+icon_height: 52px
+animation: bounce
+state_display: |
+  [[[
+    const days = Number(entity.state);
+    if (Number.isNaN(days)) return entity.state;
+    if (days < 0) return "Vorbei";
+    if (days === 0) return "Heute";
+    if (days === 1) return "Morgen";
+    return `in ${days} Tagen`;
+  ]]]
+buttons:
+  - entity: sensor.waste_collection_schedule_gelbe_tonne
+    name: Gelbe Tonne
+    entity_picture: /local/waste/yellow.png
+    color: "#645d16"
+    visibility:
+      - condition: numeric_state
+        below: 3
+  - entity: sensor.waste_collection_schedule_altpapier
+    name: Altpapier
+    entity_picture: /local/waste/blue.png
+    color: "#022845"
+    visibility:
+      - condition: numeric_state
+        below: 3
+```
 
 ### Cover control
 

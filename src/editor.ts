@@ -7,9 +7,10 @@ import {
   mdiPalette,
   mdiPlus,
 } from "@mdi/js";
-import { LitElement, css, html, nothing } from "lit";
+import { ContextProvider, createContext } from "@lit/context";
+import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { defaultTapAction } from "./split-button-segment";
+import { ANIMATIONS, defaultTapAction } from "./split-button-segment";
 import type { HomeAssistant, SegmentConfig, SplitButtonCardConfig } from "./types";
 
 // Labels for options the frontend has no translation for.
@@ -36,6 +37,16 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     duplicate: "Duplicate",
     remove: "Remove",
     button: "Button",
+    entity_picture: "Picture URL",
+    show_entity_picture: "Show entity picture",
+    state_display: "State text (text or [[[ JavaScript ]]])",
+    animation: "Animation",
+    animation_bounce: "Bounce",
+    animation_pulse: "Pulse",
+    animation_shake: "Shake",
+    animation_blink: "Blink",
+    visibility: "Visibility",
+    visibility_help: "The button is only shown when all conditions are met.",
   },
   de: {
     columns: "Spalten",
@@ -59,6 +70,16 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     duplicate: "Duplizieren",
     remove: "Entfernen",
     button: "Button",
+    entity_picture: "Bild-URL",
+    show_entity_picture: "Bild der Entity anzeigen",
+    state_display: "Zustandstext (Text oder [[[ JavaScript ]]])",
+    animation: "Animation",
+    animation_bounce: "Hüpfen",
+    animation_pulse: "Pulsieren",
+    animation_shake: "Wackeln",
+    animation_blink: "Blinken",
+    visibility: "Sichtbarkeit",
+    visibility_help: "Der Button wird nur angezeigt, wenn alle Bedingungen erfüllt sind.",
   },
 };
 
@@ -89,6 +110,7 @@ const CARD_DEFAULTS: Record<string, unknown> = {
   show_state: false,
   state_background: false,
   background_opacity: 0.2,
+  show_entity_picture: false,
 };
 
 const colorSchema = [
@@ -192,9 +214,24 @@ export class SplitButtonCardEditor extends LitElement {
             ],
           },
           ...colorSchema,
+          { name: "show_entity_picture", selector: { boolean: {} } },
+          { name: "state_display", selector: { text: { multiline: true } } },
+          this._animationSchema(),
         ],
       },
     ];
+  }
+
+  private _animationSchema() {
+    return {
+      name: "animation",
+      selector: {
+        select: {
+          mode: "dropdown",
+          options: ANIMATIONS.map((value) => ({ value, label: this._t(`animation_${value}`) })),
+        },
+      },
+    };
   }
 
   private _buttonSchema(button: SegmentConfig) {
@@ -214,6 +251,8 @@ export class SplitButtonCardEditor extends LitElement {
         schema: [
           { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
           { name: "icon_height", selector: { text: { suffix: "px" } } },
+          { name: "entity_picture", selector: { text: {} } },
+          { name: "show_entity_picture", selector: { boolean: {} } },
         ],
       },
       {
@@ -226,7 +265,9 @@ export class SplitButtonCardEditor extends LitElement {
           { name: "show_icon", selector: { boolean: {} } },
         ],
       },
+      { name: "state_display", selector: { text: { multiline: true } } },
       ...colorSchema,
+      this._animationSchema(),
       {
         name: "",
         type: "grid",
@@ -277,6 +318,8 @@ export class SplitButtonCardEditor extends LitElement {
       show_state: config.show_state ?? CARD_DEFAULTS.show_state,
       state_background: config.state_background ?? CARD_DEFAULTS.state_background,
       background_opacity: config.background_opacity ?? CARD_DEFAULTS.background_opacity,
+      show_entity_picture: config.show_entity_picture ?? CARD_DEFAULTS.show_entity_picture,
+      ...(config.animation ? { animation: config.animation } : {}),
     };
   }
 
@@ -367,6 +410,14 @@ export class SplitButtonCardEditor extends LitElement {
           .computeHelper=${this._computeHelper}
           @value-changed=${(ev: CustomEvent) => this._buttonChanged(ev, index)}
         ></ha-form>
+        <h4>${this._t("visibility")}</h4>
+        <p class="help">${this._t("visibility_help")}</p>
+        <split-button-visibility-editor
+          .hass=${this.hass}
+          .entityId=${button.entity}
+          .conditions=${button.visibility ?? []}
+          @value-changed=${(ev: CustomEvent) => this._visibilityChanged(ev, index)}
+        ></split-button-visibility-editor>
       </ha-expansion-panel>
     `;
   }
@@ -406,6 +457,20 @@ export class SplitButtonCardEditor extends LitElement {
       value.icon_height = `${value.icon_height}px`;
     }
     buttons[index] = value as SegmentConfig;
+    this._updateConfig({ ...this._config!, buttons });
+  }
+
+  private _visibilityChanged(ev: CustomEvent, index: number): void {
+    ev.stopPropagation();
+    const buttons = [...this._config!.buttons];
+    const button = { ...buttons[index] };
+    const conditions = ev.detail.value;
+    if (Array.isArray(conditions) && conditions.length) {
+      button.visibility = conditions;
+    } else {
+      delete button.visibility;
+    }
+    buttons[index] = button;
     this._updateConfig({ ...this._config!, buttons });
   }
 
@@ -470,6 +535,18 @@ export class SplitButtonCardEditor extends LitElement {
       padding-top: 8px;
     }
 
+    h4 {
+      margin: 24px 0 4px;
+      font-size: var(--ha-font-size-m, 14px);
+      font-weight: var(--ha-font-weight-medium, 500);
+    }
+
+    .help {
+      margin: 0 0 8px;
+      color: var(--secondary-text-color);
+      font-size: var(--ha-font-size-s, 12px);
+    }
+
     [slot="leading-icon"] {
       color: var(--secondary-text-color);
     }
@@ -483,6 +560,59 @@ export class SplitButtonCardEditor extends LitElement {
       align-self: flex-start;
     }
   `;
+}
+
+// Same context key the frontend uses, so its condition editors offer the
+// button's entity as "current entity".
+const conditionsEntityContext = createContext<
+  { mode: "current"; entityId: string } | undefined
+>("conditions-entity-context");
+
+@customElement("split-button-visibility-editor")
+export class SplitButtonVisibilityEditor extends LitElement {
+  @property({ attribute: false }) public hass?: HomeAssistant;
+
+  @property({ attribute: false }) public entityId?: string;
+
+  @property({ attribute: false }) public conditions: Record<string, unknown>[] = [];
+
+  private _provider = new ContextProvider(this, {
+    context: conditionsEntityContext,
+    initialValue: undefined,
+  });
+
+  protected willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has("entityId")) {
+      this._provider.setValue(
+        this.entityId ? { mode: "current", entityId: this.entityId } : undefined
+      );
+    }
+  }
+
+  protected render() {
+    // The conditions editor is loaded with the card edit dialog; fall back
+    // to a YAML field wherever it is not available.
+    if (customElements.get("ha-card-conditions-editor")) {
+      return html`<ha-card-conditions-editor
+        .hass=${this.hass}
+        .conditions=${this.conditions}
+      ></ha-card-conditions-editor>`;
+    }
+    return html`<ha-form
+      .hass=${this.hass}
+      .data=${{ visibility: this.conditions }}
+      .schema=${[{ name: "visibility", selector: { object: {} } }]}
+      .computeLabel=${() => ""}
+      @value-changed=${this._yamlChanged}
+    ></ha-form>`;
+  }
+
+  private _yamlChanged(ev: CustomEvent): void {
+    ev.stopPropagation();
+    this.dispatchEvent(
+      new CustomEvent("value-changed", { detail: { value: ev.detail.value.visibility } })
+    );
+  }
 }
 
 const stopPropagation = (ev: Event) => ev.stopPropagation();
@@ -511,5 +641,6 @@ const stripDefaults = (
 declare global {
   interface HTMLElementTagNameMap {
     "split-button-card-editor": SplitButtonCardEditor;
+    "split-button-visibility-editor": SplitButtonVisibilityEditor;
   }
 }

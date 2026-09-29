@@ -17,3 +17,33 @@ lovelace:
   resources:
     - url: /local/split-button-card.js
       type: module
+
+# Waste collection test setup: days until pickup per bin.
+input_number:
+  waste_gelb:
+    name: Gelbe Tonne Tage
+    min: -1
+    max: 30
+    step: 1
+  waste_papier:
+    name: Altpapier Tage
+    min: -1
+    max: 30
+    step: 1
+  waste_rest:
+    name: Restmüll Tage
+    min: -1
+    max: 30
+    step: 1
+
+template:
+  - sensor:
+      - name: waste_collection_schedule_gelbe_tonne
+        unit_of_measurement: Tage
+        state: "{{ states('input_number.waste_gelb') | int }}"
+      - name: waste_collection_schedule_altpapier
+        unit_of_measurement: Tage
+        state: "{{ states('input_number.waste_papier') | int }}"
+      - name: waste_collection_schedule_restmull
+        unit_of_measurement: Tage
+        state: "{{ states('input_number.waste_rest') | int }}"
