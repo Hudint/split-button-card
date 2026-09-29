@@ -10,7 +10,7 @@ import type {
   SplitButtonCardConfig,
 } from "./types";
 
-const CARD_VERSION = "0.3.0";
+const CARD_VERSION = "0.3.1";
 
 const DIVIDER_MODES: DividerMode[] = ["border", "line", "gap", "none"];
 

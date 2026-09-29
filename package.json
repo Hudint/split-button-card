@@ -1,6 +1,6 @@
 {
   "name": "split-button-card",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A Home Assistant Lovelace card that looks like the native button card, split into multiple sub-buttons.",
   "type": "module",
   "scripts": {
