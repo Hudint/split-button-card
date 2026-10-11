@@ -436,6 +436,9 @@ export class SplitButtonCardEditor extends LitElement {
       : undefined;
 
   private _expandedChanged(ev: CustomEvent, index: number): void {
+    // Nested panels (conditions, interactions) fire the same event and it
+    // bubbles up here; only react to the button's own panel.
+    if (ev.target !== ev.currentTarget) return;
     if (ev.detail.expanded) {
       this._expanded = index;
     } else if (this._expanded === index) {
