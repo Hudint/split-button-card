@@ -163,7 +163,11 @@ export class SplitButtonCardEditor extends LitElement {
   @state() private _expanded?: number;
 
   public setConfig(config: SplitButtonCardConfig): void {
-    this._config = config;
+    // Keep unchanged parts as the same objects: card-mod hands every editor
+    // a JSON copy of its config, and the frontend's conditions editor keys
+    // its rows by object identity, so copies would collapse them on every
+    // keystroke.
+    this._config = reuseEqual(this._config, config);
   }
 
   private _t(key: string): string {
@@ -619,6 +623,35 @@ export class SplitButtonVisibilityEditor extends LitElement {
 }
 
 const stopPropagation = (ev: Event) => ev.stopPropagation();
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Returns `next`, but with every part that is deep-equal to the matching
+ * part of `prev` replaced by the object from `prev`.
+ */
+const reuseEqual = <T>(prev: unknown, next: T): T => {
+  if (prev === next) return next;
+  if (Array.isArray(prev) && Array.isArray(next)) {
+    const items = next.map((item, i) => reuseEqual(prev[i], item));
+    return (
+      items.length === prev.length && items.every((item, i) => item === prev[i]) ? prev : items
+    ) as T;
+  }
+  if (isPlainObject(prev) && isPlainObject(next)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(next)) {
+      result[key] = reuseEqual(prev[key], value);
+    }
+    const keys = Object.keys(result);
+    const same =
+      keys.length === Object.keys(prev).length &&
+      keys.every((key) => key in prev && result[key] === prev[key]);
+    return (same ? prev : result) as T;
+  }
+  return next;
+};
 
 const withDefaults = <T extends object>(config: T, defaults: Record<string, unknown>) =>
   ({ ...defaults, ...config }) as T & Record<string, any>;
