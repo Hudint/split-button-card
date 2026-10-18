@@ -3,7 +3,12 @@ import { customElement, property } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { ActionHandler, type Action } from "./action-handler";
-import { computeStateColor, stateActive, stateColorBrightness } from "./state-color";
+import {
+  computeCssColor,
+  computeStateColor,
+  stateActive,
+  stateColorBrightness,
+} from "./state-color";
 import { isTemplate, renderTemplate } from "./templates";
 import type { ActionConfig, HassEntity, HomeAssistant, SegmentConfig } from "./types";
 
@@ -22,7 +27,17 @@ const DOMAINS_TOGGLE = new Set([
 export const ANIMATIONS = ["bounce", "pulse", "shake", "blink"] as const;
 
 // Options that may be button-card style JavaScript templates.
-const TEMPLATE_KEYS = ["name", "icon", "color", "entity_picture", "state_display"] as const;
+const TEMPLATE_KEYS = [
+  "name",
+  "icon",
+  "icon_on",
+  "icon_off",
+  "color",
+  "entity_picture",
+  "state_display",
+] as const;
+
+export const SWITCH_ANIMATIONS = ["left", "bottom", "tap", "fade"] as const;
 
 const hasAction = (config?: ActionConfig) =>
   config !== undefined && config.action !== "none";
@@ -44,6 +59,14 @@ export class SplitButtonSegment extends LitElement {
   @property({ type: Boolean, reflect: true }) public dimmed = false;
 
   private _actionHandler?: ActionHandler;
+
+  // Fill color of the last active state, kept so the fill can wipe out in
+  // its color after the entity turned off.
+  private _lastFillColor?: string;
+
+  // Transitions are enabled after the first paint, so a button that is
+  // already on does not animate when the dashboard loads.
+  private _ready = false;
 
   // Only re-render when the entity this segment shows actually changed.
   // Templates can read any entity, so segments using them always update.
@@ -68,11 +91,19 @@ export class SplitButtonSegment extends LitElement {
     // "none" (or state_color: false without a color) disables it.
     const color = config.color === "state" ? undefined : config.color;
     const noColor = color === "none" || (!color && config.state_color === false);
+    const active = !stateObj || stateActive(stateObj);
     const iconColor = noColor ? undefined : computeStateColor(stateObj, color);
+
+    // Switch style: the whole segment fills with the state color while active.
+    let fillColor: string | undefined;
+    if (config.switch_style && color !== "none") {
+      fillColor = active ? computeStateColor(stateObj, color) : undefined;
+      if (fillColor) this._lastFillColor = fillColor;
+    }
+    const filled = !!fillColor;
+
     const backgroundColor =
-      config.state_background &&
-      color !== "none" &&
-      (!stateObj || stateActive(stateObj))
+      !config.switch_style && config.state_background && color !== "none" && active
         ? computeStateColor(stateObj, color)
         : undefined;
 
@@ -89,27 +120,41 @@ export class SplitButtonSegment extends LitElement {
 
     const iconStyle = styleMap({
       height: config.icon_height,
-      filter: stateObj && iconColor && !picture ? stateColorBrightness(stateObj) : undefined,
+      filter:
+        stateObj && iconColor && !picture && !filled ? stateColorBrightness(stateObj) : undefined,
     });
+    const icon = (stateObj && (active ? config.icon_on : config.icon_off)) || config.icon;
 
     return html`
       <div
-        class="segment ${config.animation ? `animate-${config.animation}` : ""}"
+        class=${[
+          "segment",
+          config.animation ? `animate-${config.animation}` : "",
+          config.switch_style ? `switch switch-${config.switch_animation ?? "left"}` : "",
+          filled ? "filled" : "",
+          this._ready ? "ready" : "",
+        ].join(" ")}
         role="button"
         aria-label=${name}
         tabindex=${ifDefined(clickable ? "0" : undefined)}
         style=${styleMap({
-          "--state-color": iconColor,
+          // Filled segments show icon and text in the switch text color.
+          "--state-color": filled ? "var(--sbc-switch-text-color, #fff)" : iconColor,
           "--sbc-background-color": backgroundColor,
           "--sbc-background-opacity":
             config.background_opacity !== undefined
               ? String(config.background_opacity)
               : undefined,
+          "--sbc-fill-color": fillColor ?? this._lastFillColor,
+          "--sbc-switch-text-color": config.switch_text_color
+            ? computeCssColor(config.switch_text_color)
+            : undefined,
         })}
       >
         ${backgroundColor ? html`<div class="background"></div>` : nothing}
+        ${config.switch_style ? html`<div class="fill"></div>` : nothing}
         <ha-ripple .disabled=${!clickable}></ha-ripple>
-        ${config.show_icon ? this._renderIcon(config, stateObj, picture, iconStyle) : nothing}
+        ${config.show_icon ? this._renderIcon(icon, stateObj, picture, iconStyle) : nothing}
         ${config.show_name ? html`<span class="name" .title=${name}>${name}</span>` : nothing}
         ${config.show_state && stateText !== undefined
           ? html`<span class="state">${stateText}</span>`
@@ -121,7 +166,7 @@ export class SplitButtonSegment extends LitElement {
   }
 
   private _renderIcon(
-    config: SegmentConfig,
+    icon: string | undefined,
     stateObj: HassEntity | undefined,
     picture: string | undefined,
     iconStyle: ReturnType<typeof styleMap>
@@ -134,11 +179,11 @@ export class SplitButtonSegment extends LitElement {
         class="icon"
         .hass=${this.hass}
         .stateObj=${stateObj}
-        .icon=${config.icon}
+        .icon=${icon}
         style=${iconStyle}
       ></ha-state-icon>`;
     }
-    return html`<ha-icon class="icon" .icon=${config.icon} style=${iconStyle}></ha-icon>`;
+    return html`<ha-icon class="icon" .icon=${icon} style=${iconStyle}></ha-icon>`;
   }
 
   /** Config with all JavaScript templates replaced by their result. */
@@ -163,7 +208,19 @@ export class SplitButtonSegment extends LitElement {
   protected updated(): void {
     const segment = this.renderRoot.querySelector<HTMLElement>(".segment");
     if (!segment) return;
+    if (!this._ready) {
+      requestAnimationFrame(() => {
+        this._ready = true;
+        segment.classList.add("ready");
+      });
+    }
     if (!this._actionHandler) {
+      // Remember where the segment was tapped for the "tap" fill animation.
+      segment.addEventListener("pointerdown", (ev: PointerEvent) => {
+        const rect = segment.getBoundingClientRect();
+        segment.style.setProperty("--sbc-tap-x", `${ev.clientX - rect.left}px`);
+        segment.style.setProperty("--sbc-tap-y", `${ev.clientY - rect.top}px`);
+      });
       this._actionHandler = new ActionHandler(segment, (action) =>
         this._handleAction(action)
       );
@@ -236,6 +293,61 @@ export class SplitButtonSegment extends LitElement {
 
     .segment:focus-visible {
       box-shadow: inset 0 0 0 2px var(--state-color);
+    }
+
+    /* Switch style: a fill layer that wipes in while active. */
+    .fill {
+      position: absolute;
+      inset: 0;
+      background: var(--sbc-fill-color);
+      pointer-events: none;
+    }
+
+    .switch-left .fill {
+      clip-path: inset(0 100% 0 0);
+    }
+
+    .switch-bottom .fill {
+      clip-path: inset(100% 0 0 0);
+    }
+
+    .switch-tap .fill {
+      clip-path: circle(0 at var(--sbc-tap-x, 50%) var(--sbc-tap-y, 50%));
+    }
+
+    .switch-fade .fill {
+      opacity: 0;
+    }
+
+    .switch.filled .fill {
+      clip-path: inset(0 0 0 0);
+      opacity: 1;
+    }
+
+    .switch-tap.filled .fill {
+      clip-path: circle(150% at var(--sbc-tap-x, 50%) var(--sbc-tap-y, 50%));
+    }
+
+    .switch.ready .fill {
+      transition:
+        clip-path var(--sbc-switch-duration, 400ms) ease-in-out,
+        opacity var(--sbc-switch-duration, 400ms) ease-in-out;
+    }
+
+    .switch.ready .icon,
+    .switch.ready span {
+      transition:
+        color var(--sbc-switch-duration, 400ms) ease-in-out,
+        transform 180ms ease-in-out;
+    }
+
+    .switch.filled {
+      --ha-ripple-color: var(--sbc-switch-text-color, #fff);
+    }
+
+    .switch.filled span,
+    .switch.filled .state {
+      color: var(--sbc-switch-text-color, #fff);
     }
 
     /* Keep content above the absolutely positioned background layer. */
@@ -362,6 +474,7 @@ export class SplitButtonSegment extends LitElement {
       .segment .icon,
       .segment > * {
         animation: none !important;
+        transition: none !important;
       }
     }
 

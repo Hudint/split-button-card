@@ -10,7 +10,7 @@ import {
 import { ContextProvider, createContext } from "@lit/context";
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { ANIMATIONS, defaultTapAction } from "./split-button-segment";
+import { ANIMATIONS, SWITCH_ANIMATIONS, defaultTapAction } from "./split-button-segment";
 import type { HomeAssistant, SegmentConfig, SplitButtonCardConfig } from "./types";
 
 // Labels for options the frontend has no translation for.
@@ -47,6 +47,15 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     animation_blink: "Blink",
     visibility: "Visibility",
     visibility_help: "The button is only shown when all conditions are met.",
+    icon_on: "Icon when on",
+    icon_off: "Icon when off",
+    switch_style: "Switch style (fill when on)",
+    switch_animation: "Fill animation",
+    switch_left: "Wipe from left",
+    switch_bottom: "Wipe from bottom",
+    switch_tap: "Circle from tap",
+    switch_fade: "Fade",
+    switch_text_color: "Icon and text color when filled",
   },
   de: {
     columns: "Spalten",
@@ -80,6 +89,15 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     animation_blink: "Blinken",
     visibility: "Sichtbarkeit",
     visibility_help: "Der Button wird nur angezeigt, wenn alle Bedingungen erfüllt sind.",
+    icon_on: "Icon wenn an",
+    icon_off: "Icon wenn aus",
+    switch_style: "Schalter-Stil (füllen wenn an)",
+    switch_animation: "Füll-Animation",
+    switch_left: "Von links wischen",
+    switch_bottom: "Von unten wischen",
+    switch_tap: "Kreis ab Tipp-Punkt",
+    switch_fade: "Einblenden",
+    switch_text_color: "Icon- und Textfarbe wenn gefüllt",
   },
 };
 
@@ -111,6 +129,7 @@ const CARD_DEFAULTS: Record<string, unknown> = {
   state_background: false,
   background_opacity: 0.2,
   show_entity_picture: false,
+  switch_style: false,
 };
 
 const colorSchema = [
@@ -220,9 +239,35 @@ export class SplitButtonCardEditor extends LitElement {
           ...colorSchema,
           { name: "show_entity_picture", selector: { boolean: {} } },
           { name: "state_display", selector: { text: { multiline: true } } },
+          ...this._switchSchema(),
           this._animationSchema(),
         ],
       },
+    ];
+  }
+
+  private _switchSchema() {
+    return [
+      {
+        name: "",
+        type: "grid",
+        schema: [
+          { name: "switch_style", selector: { boolean: {} } },
+          {
+            name: "switch_animation",
+            selector: {
+              select: {
+                mode: "dropdown",
+                options: SWITCH_ANIMATIONS.map((value) => ({
+                  value,
+                  label: this._t(`switch_${value}`),
+                })),
+              },
+            },
+          },
+        ],
+      },
+      { name: "switch_text_color", selector: { ui_color: {} } },
     ];
   }
 
@@ -255,6 +300,8 @@ export class SplitButtonCardEditor extends LitElement {
         schema: [
           { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
           { name: "icon_height", selector: { text: { suffix: "px" } } },
+          { name: "icon_on", selector: { icon: {} } },
+          { name: "icon_off", selector: { icon: {} } },
           { name: "entity_picture", selector: { text: {} } },
           { name: "show_entity_picture", selector: { boolean: {} } },
         ],
@@ -271,6 +318,7 @@ export class SplitButtonCardEditor extends LitElement {
       },
       { name: "state_display", selector: { text: { multiline: true } } },
       ...colorSchema,
+      ...this._switchSchema(),
       this._animationSchema(),
       {
         name: "",
@@ -323,6 +371,7 @@ export class SplitButtonCardEditor extends LitElement {
       state_background: config.state_background ?? CARD_DEFAULTS.state_background,
       background_opacity: config.background_opacity ?? CARD_DEFAULTS.background_opacity,
       show_entity_picture: config.show_entity_picture ?? CARD_DEFAULTS.show_entity_picture,
+      switch_style: config.switch_style ?? CARD_DEFAULTS.switch_style,
       ...(config.animation ? { animation: config.animation } : {}),
     };
   }

@@ -3,7 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { checkConditionsMet, usesCondition } from "./conditions";
 import { loadHaForm } from "./editor";
-import { ANIMATIONS, defaultTapAction } from "./split-button-segment";
+import { ANIMATIONS, SWITCH_ANIMATIONS, defaultTapAction } from "./split-button-segment";
 import type {
   DividerMode,
   HomeAssistant,
@@ -11,7 +11,7 @@ import type {
   SplitButtonCardConfig,
 } from "./types";
 
-const CARD_VERSION = "0.4.2";
+const CARD_VERSION = "0.5.0";
 
 const DIVIDER_MODES: DividerMode[] = ["border", "line", "gap", "none"];
 
@@ -92,6 +92,12 @@ export class SplitButtonCard extends LitElement {
           `buttons[${i}]: invalid animation '${animation}', use one of: ${ANIMATIONS.join(", ")}`
         );
       }
+      const switchAnimation = button.switch_animation ?? config.switch_animation;
+      if (switchAnimation && !(SWITCH_ANIMATIONS as readonly string[]).includes(switchAnimation)) {
+        throw new Error(
+          `buttons[${i}]: invalid switch_animation '${switchAnimation}', use one of: ${SWITCH_ANIMATIONS.join(", ")}`
+        );
+      }
       for (const key of ["span", "row_span"] as const) {
         const value = button[key];
         if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
@@ -114,6 +120,9 @@ export class SplitButtonCard extends LitElement {
       show_entity_picture: config.show_entity_picture ?? false,
       animation: config.animation,
       state_display: config.state_display,
+      switch_style: config.switch_style ?? false,
+      switch_animation: config.switch_animation,
+      switch_text_color: config.switch_text_color,
       tap_action: defaultTapAction(button.entity),
       hold_action: { action: "more-info" },
       double_tap_action: { action: "none" },

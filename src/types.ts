@@ -34,6 +34,11 @@ export interface SegmentConfig {
   state_color?: boolean;
   state_background?: boolean;
   background_opacity?: number;
+  icon_on?: string;
+  icon_off?: string;
+  switch_style?: boolean;
+  switch_animation?: string;
+  switch_text_color?: string;
   entity_picture?: string;
   show_entity_picture?: boolean;
   state_display?: string;
@@ -65,4 +70,7 @@ export interface SplitButtonCardConfig {
   show_entity_picture?: boolean;
   animation?: string;
   state_display?: string;
+  switch_style?: boolean;
+  switch_animation?: string;
+  switch_text_color?: string;
 }

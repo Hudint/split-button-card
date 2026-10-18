@@ -20,6 +20,7 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 - `tap_action`, `hold_action` and `double_tap_action` with all standard Home Assistant actions.
 - Per-button visibility conditions: the card hides itself when no button is visible.
 - Custom pictures, JavaScript templates (button-card syntax) and animations per button.
+- Switch style: the button fills with color when turned on, with a wipe animation, and separate icons for on and off.
 - Visual editor: configure everything in the dashboard UI, no YAML needed.
 
 ## Installation
@@ -71,7 +72,7 @@ buttons:
 | `gap`                | string  | `8px`             | Spacing for `divider: gap`.                                                                          |
 
 These options can be set on the card as default for all buttons, and overridden per button:
-`show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`, `show_entity_picture`, `state_display`, `animation`.
+`show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`, `show_entity_picture`, `state_display`, `animation`, `switch_style`, `switch_animation`, `switch_text_color`.
 
 ### Button options
 
@@ -80,6 +81,8 @@ These options can be set on the card as default for all buttons, and overridden 
 | `entity`             | string  |                                                    | Entity shown and controlled by this button.                                                         |
 | `name`               | string  | entity name                                        | Text below the icon.                                                                                |
 | `icon`               | string  | entity icon                                        | Any `mdi:` icon.                                                                                    |
+| `icon_on`            | string  | `icon`                                             | Icon while the entity is on (active: light on, cover open, …).                                      |
+| `icon_off`           | string  | `icon`                                             | Icon while the entity is off.                                                                       |
 | `show_name`          | boolean | `true`                                             |                                                                                                     |
 | `show_icon`          | boolean | `true`                                             |                                                                                                     |
 | `show_state`         | boolean | `false`                                            | Show the entity state below the name.                                                               |
@@ -92,12 +95,31 @@ These options can be set on the card as default for all buttons, and overridden 
 | `show_entity_picture`| boolean | `false`                                            | Show the entity's own picture (e.g. person, media player) instead of the icon.                     |
 | `state_display`      | string  | formatted state                                    | Text shown as state. Plain text or a JavaScript template, see below.                               |
 | `animation`          | string  |                                                    | `bounce`, `pulse`, `shake` or `blink`.                                                              |
+| `switch_style`       | boolean | `false`                                            | Fill the whole button with `color` (default: state color) while on, like a switch.                  |
+| `switch_animation`   | string  | `left`                                             | How the fill appears: `left` / `bottom` (wipe), `tap` (circle from where you tapped) or `fade`.     |
+| `switch_text_color`  | string  | `white`                                            | Icon and text color while filled (theme color or any CSS color).                                    |
 | `visibility`         | list    |                                                    | Conditions like the card [visibility](https://www.home-assistant.io/dashboards/cards/#showing-or-hiding-a-card-conditionally) option. Conditions without `entity` use the button's entity. |
 | `span`               | number  | `1`                                                | Grid columns this button occupies.                                                                  |
 | `row_span`           | number  | `1`                                                | Grid rows this button occupies.                                                                     |
 | `tap_action`         | action  | `toggle` for toggleable entities, else `more-info` | Standard [Home Assistant action](https://www.home-assistant.io/dashboards/actions/).               |
 | `hold_action`        | action  | `more-info`                                        |                                                                                                     |
 | `double_tap_action`  | action  | `none`                                             |                                                                                                     |
+
+### Switch style
+
+```yaml
+type: custom:split-button-card
+switch_style: true
+buttons:
+  - entity: light.living_room
+    icon_on: mdi:lightbulb-on
+    icon_off: mdi:lightbulb-outline
+  - entity: switch.coffee_machine
+    color: green
+    switch_animation: bottom
+```
+
+The fill duration can be changed with the CSS variable `--sbc-switch-duration` (default `400ms`).
 
 ### Templates
 
