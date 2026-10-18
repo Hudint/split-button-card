@@ -3,9 +3,13 @@ import {
   mdiArrowUp,
   mdiContentCopy,
   mdiDelete,
+  mdiEye,
   mdiGestureTap,
   mdiPalette,
   mdiPlus,
+  mdiTextShort,
+  mdiTune,
+  mdiViewGrid,
 } from "@mdi/js";
 import { ContextProvider, createContext } from "@lit/context";
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
@@ -18,14 +22,13 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
   en: {
     columns: "Columns",
     divider: "Divider",
-    divider_border: "Card border",
+    divider_border: "Lines",
     divider_line: "Short lines",
     divider_gap: "Separate tiles",
     divider_none: "None",
     divider_width: "Divider width",
     divider_color: "Divider color",
     gap: "Gap",
-    appearance: "Appearance (defaults for all buttons)",
     state_background: "Tint background when active",
     background_opacity: "Background opacity",
     span: "Column span",
@@ -38,8 +41,8 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     remove: "Remove",
     button: "Button",
     entity_picture: "Picture URL",
-    show_entity_picture: "Show entity picture",
-    state_display: "State text (text or [[[ JavaScript ]]])",
+    show_entity_picture: "Show picture",
+    state_display: "State text",
     animation: "Animation",
     animation_bounce: "Bounce",
     animation_pulse: "Pulse",
@@ -55,19 +58,32 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     switch_bottom: "Wipe from bottom",
     switch_tap: "Circle from tap",
     switch_fade: "Fade",
-    switch_text_color: "Icon and text color when filled",
+    switch_text_color: "Icon / text color",
+    content: "Content",
+    appearance: "Appearance",
+    layout: "Layout",
+    button_defaults: "Defaults for all buttons",
+    active_style: "When on",
+    active_icon: "Color the icon",
+    active_tint: "Tint the background",
+    active_fill: "Fill the button (switch)",
+    conditions_count: "conditions",
+    condition_count: "condition",
+    columns_help: "Default: number of visible buttons",
+    state_display_help: "Static text or a JavaScript template [[[ … ]]]",
+    entity_picture_help: "Overrides the entity's own picture",
+    layout_help: "Number of columns and rows this button occupies",
   },
   de: {
     columns: "Spalten",
     divider: "Trennung",
-    divider_border: "Kartenrahmen",
+    divider_border: "Linien",
     divider_line: "Kurze Linien",
     divider_gap: "Einzelne Kacheln",
     divider_none: "Keine",
     divider_width: "Linienbreite",
     divider_color: "Linienfarbe",
     gap: "Abstand",
-    appearance: "Darstellung (Standard für alle Buttons)",
     state_background: "Hintergrund einfärben, wenn aktiv",
     background_opacity: "Deckkraft des Hintergrunds",
     span: "Spaltenbreite",
@@ -80,8 +96,8 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     remove: "Entfernen",
     button: "Button",
     entity_picture: "Bild-URL",
-    show_entity_picture: "Bild der Entity anzeigen",
-    state_display: "Zustandstext (Text oder [[[ JavaScript ]]])",
+    show_entity_picture: "Bild anzeigen",
+    state_display: "Zustandstext",
     animation: "Animation",
     animation_bounce: "Hüpfen",
     animation_pulse: "Pulsieren",
@@ -97,7 +113,21 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     switch_bottom: "Von unten wischen",
     switch_tap: "Kreis ab Tipp-Punkt",
     switch_fade: "Einblenden",
-    switch_text_color: "Icon- und Textfarbe wenn gefüllt",
+    switch_text_color: "Icon-/Textfarbe",
+    content: "Inhalt",
+    appearance: "Darstellung",
+    layout: "Layout",
+    button_defaults: "Standards für alle Buttons",
+    active_style: "Wenn an",
+    active_icon: "Icon färben",
+    active_tint: "Hintergrund tönen",
+    active_fill: "Button füllen (Schalter)",
+    conditions_count: "Bedingungen",
+    condition_count: "Bedingung",
+    columns_help: "Standard: Anzahl der sichtbaren Buttons",
+    state_display_help: "Fester Text oder ein JavaScript-Template [[[ … ]]]",
+    entity_picture_help: "Ersetzt das Bild der Entity",
+    layout_help: "Anzahl der Spalten und Zeilen, die der Button belegt",
   },
 };
 
@@ -132,25 +162,28 @@ const CARD_DEFAULTS: Record<string, unknown> = {
   switch_style: false,
 };
 
-const colorSchema = [
-  {
-    name: "",
-    type: "grid",
-    schema: [
-      {
-        name: "color",
-        selector: {
-          ui_color: { default_color: "state", include_state: true, include_none: true },
-        },
-      },
-      { name: "state_background", selector: { boolean: {} } },
-    ],
-  },
-  {
-    name: "background_opacity",
-    selector: { number: { min: 0, max: 1, step: 0.05, mode: "slider" } },
-  },
-];
+type ActiveStyle = "icon" | "tint" | "fill";
+
+// "When on" is one choice in the editor, stored as two flags in the config.
+const activeStyle = (data: Record<string, unknown>): ActiveStyle =>
+  data.switch_style ? "fill" : data.state_background ? "tint" : "icon";
+
+const applyActiveStyle = (
+  value: Record<string, any>,
+  inherited: Record<string, unknown>
+): Record<string, any> => {
+  const style = value.active_style as ActiveStyle | undefined;
+  const result = { ...value };
+  delete result.active_style;
+  if (!style) return result;
+  const flags = { switch_style: style === "fill", state_background: style === "tint" };
+  for (const [key, flag] of Object.entries(flags)) {
+    // Only store what differs from the inherited default.
+    if (flag === (inherited[key] ?? false)) delete result[key];
+    else result[key] = flag;
+  }
+  return result;
+};
 
 let formLoaded: Promise<void> | undefined;
 
@@ -195,6 +228,7 @@ export class SplitButtonCardEditor extends LitElement {
   }
 
   private _cardSchema() {
+    const divider = this._config?.divider ?? "border";
     return [
       {
         name: "",
@@ -203,6 +237,7 @@ export class SplitButtonCardEditor extends LitElement {
           { name: "columns", selector: { number: { min: 1, max: 12, mode: "box" } } },
           {
             name: "divider",
+            required: true,
             selector: {
               select: {
                 mode: "dropdown",
@@ -213,36 +248,82 @@ export class SplitButtonCardEditor extends LitElement {
               },
             },
           },
-          { name: "divider_width", selector: { text: {} } },
-          { name: "divider_color", selector: { text: {} } },
-          ...(this._config?.divider === "gap"
-            ? [{ name: "gap", selector: { text: {} } }]
+          ...(divider !== "none"
+            ? [
+                { name: "divider_width", selector: { text: {} } },
+                { name: "divider_color", selector: { text: {} } },
+              ]
             : []),
+          ...(divider === "gap" ? [{ name: "gap", selector: { text: {} } }] : []),
         ],
       },
+    ];
+  }
+
+  private _defaultsSchema(data: Record<string, unknown>) {
+    return [
       {
-        name: "appearance",
+        name: "button_defaults",
         type: "expandable",
         flatten: true,
-        iconPath: mdiPalette,
+        iconPath: mdiTune,
         schema: [
-          {
-            name: "",
-            type: "grid",
-            column_min_width: "100px",
-            schema: [
-              { name: "show_name", selector: { boolean: {} } },
-              { name: "show_state", selector: { boolean: {} } },
-              { name: "show_icon", selector: { boolean: {} } },
-            ],
-          },
-          ...colorSchema,
-          { name: "show_entity_picture", selector: { boolean: {} } },
+          this._togglesSchema(),
           { name: "state_display", selector: { text: { multiline: true } } },
-          ...this._switchSchema(),
-          this._animationSchema(),
+          { name: "icon_height", selector: { text: { suffix: "px" } } },
+          { name: "show_entity_picture", selector: { boolean: {} } },
+          ...this._appearanceFields(data),
         ],
       },
+    ];
+  }
+
+  private _togglesSchema() {
+    return {
+      name: "",
+      type: "grid",
+      column_min_width: "160px",
+      schema: [
+        { name: "show_name", selector: { boolean: {} } },
+        { name: "show_state", selector: { boolean: {} } },
+        { name: "show_icon", selector: { boolean: {} } },
+      ],
+    };
+  }
+
+  /** Color, "when on" style with its dependent options, animation. */
+  private _appearanceFields(data: Record<string, unknown>) {
+    const style = activeStyle(data);
+    return [
+      {
+        name: "color",
+        selector: {
+          ui_color: { default_color: "state", include_state: true, include_none: true },
+        },
+      },
+      {
+        name: "active_style",
+        required: true,
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: (["icon", "tint", "fill"] as const).map((value) => ({
+              value,
+              label: this._t(`active_${value}`),
+            })),
+          },
+        },
+      },
+      ...(style === "tint"
+        ? [
+            {
+              name: "background_opacity",
+              selector: { number: { min: 0, max: 1, step: 0.05, mode: "slider" } },
+            },
+          ]
+        : []),
+      ...(style === "fill" ? this._switchSchema() : []),
+      this._animationSchema(),
     ];
   }
 
@@ -252,7 +333,6 @@ export class SplitButtonCardEditor extends LitElement {
         name: "",
         type: "grid",
         schema: [
-          { name: "switch_style", selector: { boolean: {} } },
           {
             name: "switch_animation",
             selector: {
@@ -265,9 +345,9 @@ export class SplitButtonCardEditor extends LitElement {
               },
             },
           },
+          { name: "switch_text_color", selector: { ui_color: {} } },
         ],
       },
-      { name: "switch_text_color", selector: { ui_color: {} } },
     ];
   }
 
@@ -283,7 +363,7 @@ export class SplitButtonCardEditor extends LitElement {
     };
   }
 
-  private _buttonSchema(button: SegmentConfig) {
+  private _buttonSchema(button: SegmentConfig, data: Record<string, unknown>) {
     const columns = this._config?.columns ?? this._config?.buttons.length ?? 1;
     // The entity_name selector exists since the 2025.12 entity naming changes
     // and only makes sense when there is an entity to compose a name from.
@@ -294,38 +374,51 @@ export class SplitButtonCardEditor extends LitElement {
     return [
       { name: "entity", selector: { entity: {} } },
       { name: "name", ...nameSelector },
+      { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
       {
-        name: "",
-        type: "grid",
+        name: "content",
+        type: "expandable",
+        flatten: true,
+        iconPath: mdiTextShort,
         schema: [
-          { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
+          this._togglesSchema(),
+          { name: "state_display", selector: { text: { multiline: true } } },
+          {
+            name: "",
+            type: "grid",
+            schema: [
+              { name: "icon_on", selector: { icon: {} } },
+              { name: "icon_off", selector: { icon: {} } },
+            ],
+          },
           { name: "icon_height", selector: { text: { suffix: "px" } } },
-          { name: "icon_on", selector: { icon: {} } },
-          { name: "icon_off", selector: { icon: {} } },
-          { name: "entity_picture", selector: { text: {} } },
           { name: "show_entity_picture", selector: { boolean: {} } },
+          ...(data.show_entity_picture || data.entity_picture
+            ? [{ name: "entity_picture", selector: { text: {} } }]
+            : []),
         ],
       },
       {
-        name: "",
-        type: "grid",
-        column_min_width: "100px",
-        schema: [
-          { name: "show_name", selector: { boolean: {} } },
-          { name: "show_state", selector: { boolean: {} } },
-          { name: "show_icon", selector: { boolean: {} } },
-        ],
+        name: "appearance",
+        type: "expandable",
+        flatten: true,
+        iconPath: mdiPalette,
+        schema: this._appearanceFields(data),
       },
-      { name: "state_display", selector: { text: { multiline: true } } },
-      ...colorSchema,
-      ...this._switchSchema(),
-      this._animationSchema(),
       {
-        name: "",
-        type: "grid",
+        name: "layout",
+        type: "expandable",
+        flatten: true,
+        iconPath: mdiViewGrid,
         schema: [
-          { name: "span", selector: { number: { min: 1, max: columns, mode: "box" } } },
-          { name: "row_span", selector: { number: { min: 1, max: 12, mode: "box" } } },
+          {
+            name: "",
+            type: "grid",
+            schema: [
+              { name: "span", selector: { number: { min: 1, max: columns, mode: "box" } } },
+              { name: "row_span", selector: { number: { min: 1, max: 12, mode: "box" } } },
+            ],
+          },
         ],
       },
       {
@@ -380,12 +473,16 @@ export class SplitButtonCardEditor extends LitElement {
     if (!this.hass || !this._config) return nothing;
     const buttons = this._config.buttons ?? [];
 
+    const data = withDefaults(this._config, CARD_DEFAULTS);
+    data.active_style = activeStyle(data);
+
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${withDefaults(this._config, CARD_DEFAULTS)}
+        .data=${data}
         .schema=${this._cardSchema()}
         .computeLabel=${this._computeLabel}
+        .computeHelper=${this._computeHelper}
         @value-changed=${this._cardChanged}
       ></ha-form>
 
@@ -397,6 +494,16 @@ export class SplitButtonCardEditor extends LitElement {
           ${this._t("add_button")}
         </ha-button>
       </div>
+
+      <ha-form
+        class="defaults"
+        .hass=${this.hass}
+        .data=${data}
+        .schema=${this._defaultsSchema(data)}
+        .computeLabel=${this._computeLabel}
+        .computeHelper=${this._computeHelper}
+        @value-changed=${this._cardChanged}
+      ></ha-form>
     `;
   }
 
@@ -409,6 +516,7 @@ export class SplitButtonCardEditor extends LitElement {
           ? this.hass!.formatEntityName(stateObj, button.name)
           : stateObj?.attributes.friendly_name;
     const data = withDefaults(button, this._buttonDefaults());
+    data.active_style = activeStyle(data);
     if (typeof data.icon_height === "string" && data.icon_height.endsWith("px")) {
       data.icon_height = String(parseFloat(data.icon_height));
     }
@@ -458,19 +566,30 @@ export class SplitButtonCardEditor extends LitElement {
         <ha-form
           .hass=${this.hass}
           .data=${data}
-          .schema=${this._buttonSchema(button)}
+          .schema=${this._buttonSchema(button, data)}
           .computeLabel=${this._computeLabel}
           .computeHelper=${this._computeHelper}
           @value-changed=${(ev: CustomEvent) => this._buttonChanged(ev, index)}
         ></ha-form>
-        <h4>${this._t("visibility")}</h4>
-        <p class="help">${this._t("visibility_help")}</p>
-        <split-button-visibility-editor
-          .hass=${this.hass}
-          .entityId=${button.entity}
-          .conditions=${button.visibility ?? []}
-          @value-changed=${(ev: CustomEvent) => this._visibilityChanged(ev, index)}
-        ></split-button-visibility-editor>
+        <ha-expansion-panel
+          class="visibility"
+          outlined
+          .header=${this._t("visibility")}
+          .secondary=${button.visibility?.length
+            ? `${button.visibility.length} ${this._t(
+                button.visibility.length === 1 ? "condition_count" : "conditions_count"
+              )}`
+            : ""}
+        >
+          <ha-svg-icon slot="leading-icon" .path=${mdiEye}></ha-svg-icon>
+          <p class="help">${this._t("visibility_help")}</p>
+          <split-button-visibility-editor
+            .hass=${this.hass}
+            .entityId=${button.entity}
+            .conditions=${button.visibility ?? []}
+            @value-changed=${(ev: CustomEvent) => this._visibilityChanged(ev, index)}
+          ></split-button-visibility-editor>
+        </ha-expansion-panel>
       </ha-expansion-panel>
     `;
   }
@@ -483,10 +602,21 @@ export class SplitButtonCardEditor extends LitElement {
     return this._t(schema.name);
   };
 
-  private _computeHelper = (schema: { name: string }): string | undefined =>
-    schema.name === "tap_action" || schema.name === "hold_action"
-      ? this.hass!.localize?.("ui.panel.lovelace.editor.card.button.default_action_help")
-      : undefined;
+  private _computeHelper = (schema: { name: string }): string | undefined => {
+    switch (schema.name) {
+      case "tap_action":
+      case "hold_action":
+        return this.hass!.localize?.("ui.panel.lovelace.editor.card.button.default_action_help");
+      case "columns":
+      case "state_display":
+      case "entity_picture":
+        return this._t(`${schema.name}_help`);
+      case "span":
+        return this._t("layout_help");
+      default:
+        return undefined;
+    }
+  };
 
   private _expandedChanged(ev: CustomEvent, index: number): void {
     // Nested panels (conditions, interactions) fire the same event and it
@@ -501,14 +631,19 @@ export class SplitButtonCardEditor extends LitElement {
 
   private _cardChanged(ev: CustomEvent): void {
     ev.stopPropagation();
-    const value = stripDefaults(ev.detail.value, this._config!, CARD_DEFAULTS);
+    const value = stripDefaults(
+      applyActiveStyle(ev.detail.value, CARD_DEFAULTS),
+      this._config!,
+      CARD_DEFAULTS
+    );
     this._updateConfig(value as SplitButtonCardConfig);
   }
 
   private _buttonChanged(ev: CustomEvent, index: number): void {
     ev.stopPropagation();
     const buttons = [...this._config!.buttons];
-    const value = stripDefaults(ev.detail.value, buttons[index], this._buttonDefaults());
+    const defaults = this._buttonDefaults();
+    const value = stripDefaults(applyActiveStyle(ev.detail.value, defaults), buttons[index], defaults);
     if (value.icon_height && !String(value.icon_height).endsWith("px")) {
       value.icon_height = `${value.icon_height}px`;
     }
@@ -591,14 +726,18 @@ export class SplitButtonCardEditor extends LitElement {
       padding-top: 8px;
     }
 
-    h4 {
-      margin: 24px 0 4px;
-      font-size: var(--ha-font-size-m, 14px);
-      font-weight: var(--ha-font-weight-medium, 500);
+    ha-expansion-panel.visibility {
+      margin-top: 24px;
+      --expansion-panel-summary-padding: 0 8px;
+    }
+
+    ha-form.defaults {
+      display: block;
+      margin-top: 24px;
     }
 
     .help {
-      margin: 0 0 8px;
+      margin: 8px 0;
       color: var(--secondary-text-color);
       font-size: var(--ha-font-size-s, 12px);
     }

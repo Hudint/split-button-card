@@ -39,7 +39,7 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 
 ### Visual editor
 
-Add the card via *Add card → Split Button Card* and configure it in the UI. Buttons can be added, reordered, duplicated and removed; each one uses the same entity, icon, color and action pickers as the native button card. Options on the card act as defaults for all buttons.
+Add the card via *Add card → Split Button Card* and configure it in the UI. Buttons can be added, reordered, duplicated and removed. Each button shows entity, name and icon up front; everything else sits in collapsible sections (*Content*, *Appearance*, *Layout*, *Interactions*, *Visibility*), using the same pickers as the native button card. *Defaults for all buttons* below the list sets options for every button at once.
 
 <img alt="Visual editor" src="docs/editor.png" width="600">
 
