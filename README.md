@@ -1,6 +1,6 @@
 # Split Button Card
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz)
 [![Build](https://github.com/Hudint/split-button-card/actions/workflows/build.yml/badge.svg)](https://github.com/Hudint/split-button-card/actions/workflows/build.yml)
 
 A Home Assistant dashboard card that looks exactly like the native **button card**, but is split into multiple sub-buttons. Every sub-button has its own icon, name, entity, color and actions.
@@ -25,10 +25,20 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 
 ## Installation
 
-### HACS
+### HACS (recommended)
+
+[![Open your Home Assistant instance and open the repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hudint&repository=split-button-card&category=plugin)
+
+1. Open HACS and search for **Split Button Card**.
+2. Install it and reload the browser.
+
+<details>
+<summary>Card not found in HACS? Add it as a custom repository</summary>
 
 1. HACS → ⋮ → *Custom repositories* → add `https://github.com/Hudint/split-button-card` with type **Dashboard**.
 2. Install **Split Button Card** and reload the browser.
+
+</details>
 
 ### Manual
 
