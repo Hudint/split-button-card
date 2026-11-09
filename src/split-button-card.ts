@@ -11,7 +11,7 @@ import type {
   SplitButtonCardConfig,
 } from "./types";
 
-const CARD_VERSION = "0.5.0";
+const CARD_VERSION = "0.6.0";
 
 const DIVIDER_MODES: DividerMode[] = ["border", "line", "gap", "none"];
 
@@ -118,6 +118,10 @@ export class SplitButtonCard extends LitElement {
       state_background: config.state_background ?? false,
       background_opacity: config.background_opacity,
       show_entity_picture: config.show_entity_picture ?? false,
+      show_toggle: config.show_toggle ?? false,
+      toggle_color: config.toggle_color,
+      toggle_icon_on: config.toggle_icon_on,
+      toggle_icon_off: config.toggle_icon_off,
       animation: config.animation,
       state_display: config.state_display,
       switch_style: config.switch_style ?? false,

@@ -21,6 +21,7 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 - Per-button visibility conditions: the card hides itself when no button is visible.
 - Custom pictures, JavaScript templates (button-card syntax) and animations per button.
 - Switch style: the button fills with color when turned on, with a wipe animation, and separate icons for on and off.
+- Mini switch: a small version of the tile card's toggle below icon, name and state.
 - Visual editor: configure everything in the dashboard UI, no YAML needed.
 
 ## Installation
@@ -82,7 +83,7 @@ buttons:
 | `gap`                | string  | `8px`             | Spacing for `divider: gap`.                                                                          |
 
 These options can be set on the card as default for all buttons, and overridden per button:
-`show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`, `show_entity_picture`, `state_display`, `animation`, `switch_style`, `switch_animation`, `switch_text_color`.
+`show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`, `show_entity_picture`, `state_display`, `animation`, `switch_style`, `switch_animation`, `switch_text_color`, `show_toggle`, `toggle_color`, `toggle_icon_on`, `toggle_icon_off`.
 
 ### Button options
 
@@ -108,6 +109,10 @@ These options can be set on the card as default for all buttons, and overridden 
 | `switch_style`       | boolean | `false`                                            | Fill the whole button with `color` (default: state color) while on, like a switch.                  |
 | `switch_animation`   | string  | `left`                                             | How the fill appears: `left` / `bottom` (wipe), `tap` (circle from where you tapped) or `fade`.     |
 | `switch_text_color`  | string  | `white`                                            | Icon and text color while filled (theme color or any CSS color).                                    |
+| `show_toggle`        | boolean | `false`                                            | Show a small switch below the text, styled like the tile card's toggle.                             |
+| `toggle_color`       | string  | state color                                        | Switch color while on.                                                                              |
+| `toggle_icon_on`     | string  | domain icon                                        | Icon on the switch while on (lightbulb for lights, fan for fans, otherwise power).                  |
+| `toggle_icon_off`    | string  | domain icon                                        | Icon on the switch while off.                                                                       |
 | `visibility`         | list    |                                                    | Conditions like the card [visibility](https://www.home-assistant.io/dashboards/cards/#showing-or-hiding-a-card-conditionally) option. Conditions without `entity` use the button's entity. |
 | `span`               | number  | `1`                                                | Grid columns this button occupies.                                                                  |
 | `row_span`           | number  | `1`                                                | Grid rows this button occupies.                                                                     |
@@ -130,6 +135,21 @@ buttons:
 ```
 
 The fill duration can be changed with the CSS variable `--sbc-switch-duration` (default `400ms`).
+
+### Mini switch
+
+```yaml
+type: custom:split-button-card
+show_state: true
+show_toggle: true
+toggle_color: green
+buttons:
+  - entity: light.ceiling
+  - entity: light.bed
+  - entity: switch.decoration
+```
+
+The whole button stays the switch; the mini switch shows the state. Its size can be changed with `--sbc-toggle-width`, `--sbc-toggle-height` and `--sbc-toggle-radius`.
 
 ### Templates
 

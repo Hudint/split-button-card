@@ -1,3 +1,13 @@
+import {
+  mdiFan,
+  mdiFanOff,
+  mdiLightbulbOff,
+  mdiLightbulbOn,
+  mdiPower,
+  mdiPowerOff,
+  mdiVolumeHigh,
+  mdiVolumeOff,
+} from "@mdi/js";
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
@@ -36,6 +46,14 @@ const TEMPLATE_KEYS = [
   "entity_picture",
   "state_display",
 ] as const;
+
+// Same icons as the frontend's toggle card feature.
+const TOGGLE_ICONS: Record<string, { on: string; off: string }> = {
+  light: { on: mdiLightbulbOn, off: mdiLightbulbOff },
+  fan: { on: mdiFan, off: mdiFanOff },
+  siren: { on: mdiVolumeHigh, off: mdiVolumeOff },
+  default: { on: mdiPower, off: mdiPowerOff },
+};
 
 export const SWITCH_ANIMATIONS = ["left", "bottom", "tap", "fade"] as const;
 
@@ -159,6 +177,7 @@ export class SplitButtonSegment extends LitElement {
         ${config.show_state && stateText !== undefined
           ? html`<span class="state">${stateText}</span>`
           : nothing}
+        ${config.show_toggle && stateObj ? this._renderToggle(config, stateObj, active) : nothing}
       </div>
       <div class="divider right"></div>
       <div class="divider bottom"></div>
@@ -184,6 +203,28 @@ export class SplitButtonSegment extends LitElement {
       ></ha-state-icon>`;
     }
     return html`<ha-icon class="icon" .icon=${icon} style=${iconStyle}></ha-icon>`;
+  }
+
+  /** Small version of the frontend's ha-control-switch (tile card toggle). */
+  private _renderToggle(config: SegmentConfig, stateObj: HassEntity, active: boolean) {
+    const domainIcons = TOGGLE_ICONS[stateObj.entity_id.split(".")[0]] ?? TOGGLE_ICONS.default;
+    const onColor = config.toggle_color
+      ? computeCssColor(config.toggle_color)
+      : computeStateColor(stateObj);
+    return html`<div
+      class="toggle ${active ? "on" : ""}"
+      aria-hidden="true"
+      style=${styleMap({ "--sbc-toggle-on-color": onColor })}
+    >
+      <div class="track"></div>
+      <div class="thumb">
+        ${config.toggle_icon_on || config.toggle_icon_off
+          ? html`<ha-icon
+              .icon=${active ? config.toggle_icon_on : config.toggle_icon_off}
+            ></ha-icon>`
+          : html`<ha-svg-icon .path=${active ? domainIcons.on : domainIcons.off}></ha-svg-icon>`}
+      </div>
+    </div>`;
   }
 
   /** Config with all JavaScript templates replaced by their result. */
@@ -245,6 +286,8 @@ export class SplitButtonSegment extends LitElement {
 
   static styles = css`
     :host {
+      /* Resolved here, before .segment repoints --state-inactive-color. */
+      --sbc-toggle-off-color: var(--state-inactive-color, var(--disabled-color, #bdbdbd));
       display: block;
       position: relative;
       min-width: 0;
@@ -406,6 +449,54 @@ export class SplitButtonSegment extends LitElement {
       font-size: var(--sbc-state-font-size, 0.9rem);
       font-weight: var(--sbc-state-font-weight, inherit);
       color: var(--secondary-text-color);
+    }
+
+    /* Mini toggle modelled on ha-control-switch; the whole segment is
+       the switch, the toggle only shows the state. */
+    .toggle {
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+      box-sizing: border-box;
+      width: var(--sbc-toggle-width, min(64px, 70%));
+      height: var(--sbc-toggle-height, 26px);
+      margin-top: 8px;
+      padding: 3px;
+      border-radius: var(--sbc-toggle-radius, 9px);
+    }
+
+    .toggle .track {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background-color: var(--sbc-toggle-off-color);
+      opacity: 0.2;
+      transition: background-color 180ms ease-in-out;
+    }
+
+    .toggle .thumb {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 50%;
+      height: 100%;
+      border-radius: calc(var(--sbc-toggle-radius, 9px) - 3px);
+      background-color: var(--sbc-toggle-off-color);
+      color: #fff;
+      --mdc-icon-size: 14px;
+      transition:
+        transform 180ms ease-in-out,
+        background-color 180ms ease-in-out;
+    }
+
+    .toggle.on .track {
+      background-color: var(--sbc-toggle-on-color);
+    }
+
+    .toggle.on .thumb {
+      transform: translateX(100%);
+      background-color: var(--sbc-toggle-on-color);
     }
 
     .animate-bounce .icon {

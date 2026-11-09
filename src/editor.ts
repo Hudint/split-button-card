@@ -73,6 +73,10 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     state_display_help: "Static text or a JavaScript template [[[ … ]]]",
     entity_picture_help: "Overrides the entity's own picture",
     layout_help: "Number of columns and rows this button occupies",
+    show_toggle: "Show switch",
+    toggle_color: "Switch color",
+    toggle_icon_on: "Switch icon when on",
+    toggle_icon_off: "Switch icon when off",
   },
   de: {
     columns: "Spalten",
@@ -128,6 +132,10 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     state_display_help: "Fester Text oder ein JavaScript-Template [[[ … ]]]",
     entity_picture_help: "Ersetzt das Bild der Entity",
     layout_help: "Anzahl der Spalten und Zeilen, die der Button belegt",
+    show_toggle: "Schalter anzeigen",
+    toggle_color: "Schalterfarbe",
+    toggle_icon_on: "Schalter-Symbol wenn an",
+    toggle_icon_off: "Schalter-Symbol wenn aus",
   },
 };
 
@@ -160,6 +168,7 @@ const CARD_DEFAULTS: Record<string, unknown> = {
   background_opacity: 0.2,
   show_entity_picture: false,
   switch_style: false,
+  show_toggle: false,
 };
 
 type ActiveStyle = "icon" | "tint" | "fill";
@@ -269,6 +278,7 @@ export class SplitButtonCardEditor extends LitElement {
         iconPath: mdiTune,
         schema: [
           this._togglesSchema(),
+          ...this._toggleFields(data),
           { name: "state_display", selector: { text: { multiline: true } } },
           { name: "icon_height", selector: { text: { suffix: "px" } } },
           { name: "show_entity_picture", selector: { boolean: {} } },
@@ -287,8 +297,25 @@ export class SplitButtonCardEditor extends LitElement {
         { name: "show_name", selector: { boolean: {} } },
         { name: "show_state", selector: { boolean: {} } },
         { name: "show_icon", selector: { boolean: {} } },
+        { name: "show_toggle", selector: { boolean: {} } },
       ],
     };
+  }
+
+  /** Mini switch options, only while the switch is shown. */
+  private _toggleFields(data: Record<string, unknown>) {
+    if (!data.show_toggle) return [];
+    return [
+      {
+        name: "",
+        type: "grid",
+        schema: [
+          { name: "toggle_icon_on", selector: { icon: {} } },
+          { name: "toggle_icon_off", selector: { icon: {} } },
+        ],
+      },
+      { name: "toggle_color", selector: { ui_color: {} } },
+    ];
   }
 
   /** Color, "when on" style with its dependent options, animation. */
@@ -382,6 +409,7 @@ export class SplitButtonCardEditor extends LitElement {
         iconPath: mdiTextShort,
         schema: [
           this._togglesSchema(),
+          ...this._toggleFields(data),
           { name: "state_display", selector: { text: { multiline: true } } },
           {
             name: "",
@@ -464,6 +492,7 @@ export class SplitButtonCardEditor extends LitElement {
       state_background: config.state_background ?? CARD_DEFAULTS.state_background,
       background_opacity: config.background_opacity ?? CARD_DEFAULTS.background_opacity,
       show_entity_picture: config.show_entity_picture ?? CARD_DEFAULTS.show_entity_picture,
+      show_toggle: config.show_toggle ?? CARD_DEFAULTS.show_toggle,
       switch_style: config.switch_style ?? CARD_DEFAULTS.switch_style,
       ...(config.animation ? { animation: config.animation } : {}),
     };
