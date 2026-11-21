@@ -127,3 +127,355 @@ views:
               - entity: light.office_rgbw_lights
               - entity: light.living_room_rgbww_lights
               - entity: switch.decorative_lights
+  - title: Menu
+    path: menu
+    type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: custom:split-button-card
+            buttons:
+              - entity: vacuum.demo_vacuum_0_ground_floor
+                name: Staubsauger
+                icon: mdi:robot-vacuum
+                show_state: true
+                state_display: "[[[ return entity.state === 'cleaning' ? 'Läuft gerade' : 'Läuft um 10:00'; ]]]"
+                buttons:
+                  - name: Jetzt starten
+                    icon: mdi:play
+                    tap_action:
+                      action: perform-action
+                      perform_action: vacuum.start
+                      target: { entity_id: vacuum.demo_vacuum_0_ground_floor }
+                  - name: Heute auslassen
+                    icon: mdi:calendar-remove
+                    tap_action:
+                      action: toggle
+                      entity: switch.ac
+                  - name: Raum
+                    icon: mdi:floor-plan
+                    buttons:
+                      - name: Küche
+                        icon: mdi:countertop
+                      - name: Wohnzimmer
+                        icon: mdi:sofa
+                      - name: Bad
+                        icon: mdi:shower
+          - type: button
+            entity: light.bed_light
+          - type: custom:split-button-card
+            menu_resize: true
+            buttons:
+              - entity: vacuum.demo_vacuum_1_first_floor
+                name: Staubsauger OG
+                icon: mdi:robot-vacuum
+                show_state: true
+                menu_columns: 2
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Dock
+                    icon: mdi:home-import-outline
+                  - name: Finden
+                    icon: mdi:map-marker
+          - type: button
+            entity: light.ceiling_lights
+          - type: button
+            entity: light.kitchen_lights
+  - title: Back
+    path: back
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: left"
+          - type: custom:split-button-card
+            menu_back: left
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: left
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: right"
+          - type: custom:split-button-card
+            menu_back: right
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: right
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: top"
+          - type: custom:split-button-card
+            menu_back: top
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: top
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: bottom"
+          - type: custom:split-button-card
+            menu_back: bottom
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: bottom
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: top_left"
+          - type: custom:split-button-card
+            menu_back: top_left
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: top_left
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: top_right"
+          - type: custom:split-button-card
+            menu_back: top_right
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: top_right
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: bottom_left"
+          - type: custom:split-button-card
+            menu_back: bottom_left
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: bottom_left
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: bottom_right"
+          - type: custom:split-button-card
+            menu_back: bottom_right
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: bottom_right
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: start"
+          - type: custom:split-button-card
+            menu_back: start
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: start
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+      - type: grid
+        cards:
+          - type: heading
+            heading: "menu_back: end"
+          - type: custom:split-button-card
+            menu_back: end
+            menu_timeout: 0
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause
+                  - name: Raum
+                    icon: mdi:floor-plan
+          - type: custom:split-button-card
+            menu_back: end
+            menu_timeout: 0
+            divider: gap
+            buttons:
+              - name: Staubsauger
+                icon: mdi:robot-vacuum
+                buttons:
+                  - name: Start
+                    icon: mdi:play
+                  - name: Pause
+                    icon: mdi:pause

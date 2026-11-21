@@ -4,18 +4,22 @@ import {
   mdiContentCopy,
   mdiDelete,
   mdiEye,
+  mdiFileTree,
   mdiGestureTap,
   mdiPalette,
   mdiPlus,
+  mdiMenu,
   mdiTextShort,
   mdiTune,
   mdiViewGrid,
 } from "@mdi/js";
 import { ContextProvider, createContext } from "@lit/context";
-import { LitElement, css, html, nothing, type PropertyValues } from "lit";
+import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { ANIMATIONS, SWITCH_ANIMATIONS, defaultTapAction } from "./split-button-segment";
 import type { HomeAssistant, SegmentConfig, SplitButtonCardConfig } from "./types";
+
+type Path = number[];
 
 // Labels for options the frontend has no translation for.
 const TRANSLATIONS: Record<string, Record<string, string>> = {
@@ -77,6 +81,39 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     toggle_color: "Switch color",
     toggle_icon_on: "Switch icon when on",
     toggle_icon_off: "Switch icon when off",
+    submenu: "Menu",
+    submenu_help: "Tapping the button opens these buttons in its place.",
+    menu_open: "Opens with",
+    menu_open_tap: "Tap",
+    menu_open_hold: "Hold",
+    menu_open_double_tap: "Double tap",
+    menu_columns: "Columns",
+    menu_columns_help: "Default: number of visible buttons",
+    menu_close_on_action: "Close after an action",
+    menu_settings: "Menus",
+    menu_timeout: "Close after inactivity",
+    menu_timeout_help: "Seconds, 0 = never",
+    menu_back: "Back button",
+    menu_back_left: "Strip on the left",
+    menu_back_right: "Strip on the right",
+    menu_back_top: "Strip at the top",
+    menu_back_bottom: "Strip at the bottom",
+    menu_back_top_left: "Corner top left",
+    menu_back_top_right: "Corner top right",
+    menu_back_bottom_left: "Corner bottom left",
+    menu_back_bottom_right: "Corner bottom right",
+    menu_back_start: "First button",
+    menu_back_end: "Last button",
+    menu_back_none: "None",
+    menu_back_icon: "Back icon",
+    menu_back_name: "Back text",
+    menu_back_color: "Back color",
+    menu_back_size: "Back size",
+    menu_back_size_help: "e.g. 40px",
+    menu_resize: "Resize the card to the open menu",
+    menu_resize_help: "Otherwise the card keeps the size of its largest menu.",
+    buttons_count: "buttons",
+    button_count: "button",
   },
   de: {
     columns: "Spalten",
@@ -136,6 +173,39 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     toggle_color: "Schalterfarbe",
     toggle_icon_on: "Schalter-Symbol wenn an",
     toggle_icon_off: "Schalter-Symbol wenn aus",
+    submenu: "Menü",
+    submenu_help: "Ein Tipp auf den Button zeigt an seiner Stelle diese Buttons.",
+    menu_open: "Öffnen mit",
+    menu_open_tap: "Tippen",
+    menu_open_hold: "Halten",
+    menu_open_double_tap: "Doppeltippen",
+    menu_columns: "Spalten",
+    menu_columns_help: "Standard: Anzahl der sichtbaren Buttons",
+    menu_close_on_action: "Nach einer Aktion schließen",
+    menu_settings: "Menüs",
+    menu_timeout: "Schließen nach Inaktivität",
+    menu_timeout_help: "Sekunden, 0 = nie",
+    menu_back: "Zurück-Button",
+    menu_back_left: "Streifen links",
+    menu_back_right: "Streifen rechts",
+    menu_back_top: "Streifen oben",
+    menu_back_bottom: "Streifen unten",
+    menu_back_top_left: "Ecke oben links",
+    menu_back_top_right: "Ecke oben rechts",
+    menu_back_bottom_left: "Ecke unten links",
+    menu_back_bottom_right: "Ecke unten rechts",
+    menu_back_start: "Als erster Button",
+    menu_back_end: "Als letzter Button",
+    menu_back_none: "Keiner",
+    menu_back_icon: "Zurück-Symbol",
+    menu_back_name: "Zurück-Text",
+    menu_back_color: "Zurück-Farbe",
+    menu_back_size: "Zurück-Größe",
+    menu_back_size_help: "z. B. 40px",
+    menu_resize: "Kartengröße an das offene Menü anpassen",
+    menu_resize_help: "Sonst behält die Karte die Größe ihres größten Menüs.",
+    buttons_count: "Buttons",
+    button_count: "Button",
   },
 };
 
@@ -169,6 +239,10 @@ const CARD_DEFAULTS: Record<string, unknown> = {
   show_entity_picture: false,
   switch_style: false,
   show_toggle: false,
+  menu_timeout: 15,
+  menu_back: "left",
+  menu_resize: false,
+  menu_close_on_action: true,
 };
 
 type ActiveStyle = "icon" | "tint" | "fill";
@@ -221,7 +295,8 @@ export class SplitButtonCardEditor extends LitElement {
 
   @state() private _config?: SplitButtonCardConfig;
 
-  @state() private _expanded?: number;
+  /** Path of the deepest expanded button panel, e.g. "0" or "0.2". */
+  @state() private _expanded?: string;
 
   public setConfig(config: SplitButtonCardConfig): void {
     // Keep unchanged parts as the same objects: card-mod hands every editor
@@ -270,7 +345,27 @@ export class SplitButtonCardEditor extends LitElement {
   }
 
   private _defaultsSchema(data: Record<string, unknown>) {
+    const hasMenus = (this._config?.buttons ?? []).some((b) => b.buttons?.length);
     return [
+      ...(hasMenus
+        ? [
+            {
+              name: "menu_settings",
+              type: "expandable",
+              flatten: true,
+              iconPath: mdiFileTree,
+              schema: [
+                {
+                  name: "menu_timeout",
+                  selector: { number: { min: 0, max: 600, mode: "box", unit_of_measurement: "s" } },
+                },
+                { name: "menu_close_on_action", selector: { boolean: {} } },
+                { name: "menu_resize", selector: { boolean: {} } },
+                ...this._backSchema(data),
+              ],
+            },
+          ]
+        : []),
       {
         name: "button_defaults",
         type: "expandable",
@@ -285,6 +380,51 @@ export class SplitButtonCardEditor extends LitElement {
           ...this._appearanceFields(data),
         ],
       },
+    ];
+  }
+
+  private _backSchema(data: Record<string, unknown>) {
+    const mode =
+      data.menu_back === false ? "none" : data.menu_back === true ? "left" : data.menu_back;
+    const asButton = mode === "start" || mode === "end";
+    return [
+      {
+        name: "menu_back",
+        required: true,
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              "left",
+              "right",
+              "top",
+              "bottom",
+              "top_left",
+              "top_right",
+              "bottom_left",
+              "bottom_right",
+              "start",
+              "end",
+              "none",
+            ].map((value) => ({ value, label: this._t(`menu_back_${value}`) })),
+          },
+        },
+      },
+      ...(mode === "none"
+        ? []
+        : [
+            {
+              name: "",
+              type: "grid",
+              schema: [
+                { name: "menu_back_icon", selector: { icon: {} } },
+                asButton
+                  ? { name: "menu_back_name", selector: { text: {} } }
+                  : { name: "menu_back_size", selector: { text: {} } },
+              ],
+            },
+            { name: "menu_back_color", selector: { ui_color: {} } },
+          ]),
     ];
   }
 
@@ -390,8 +530,24 @@ export class SplitButtonCardEditor extends LitElement {
     };
   }
 
-  private _buttonSchema(button: SegmentConfig, data: Record<string, unknown>) {
-    const columns = this._config?.columns ?? this._config?.buttons.length ?? 1;
+  private _buttonSchema(button: SegmentConfig, data: Record<string, unknown>, path: Path) {
+    const parent = path.length > 1 ? this._buttonAt(path.slice(0, -1)) : undefined;
+    const siblings = this._buttonsAt(path.slice(0, -1));
+    const columns = (parent ? parent.menu_columns : this._config?.columns) ?? siblings.length;
+    // The gesture that opens a menu has no action of its own.
+    const menuGesture = button.buttons?.length ? (button.menu_open ?? "tap") : undefined;
+    const actionFields = [
+      {
+        name: "tap_action",
+        selector: { ui_action: { default_action: defaultTapAction(button.entity).action } },
+        context: ACTION_RELATED_CONTEXT,
+      },
+      {
+        name: "hold_action",
+        selector: { ui_action: { default_action: "more-info" } },
+        context: ACTION_RELATED_CONTEXT,
+      },
+    ].filter((field) => field.name !== `${menuGesture}_action`);
     // The entity_name selector exists since the 2025.12 entity naming changes
     // and only makes sense when there is an entity to compose a name from.
     const nameSelector =
@@ -455,28 +611,23 @@ export class SplitButtonCardEditor extends LitElement {
         flatten: true,
         iconPath: mdiGestureTap,
         schema: [
-          {
-            name: "tap_action",
-            selector: { ui_action: { default_action: defaultTapAction(button.entity).action } },
-            context: ACTION_RELATED_CONTEXT,
-          },
-          {
-            name: "hold_action",
-            selector: { ui_action: { default_action: "more-info" } },
-            context: ACTION_RELATED_CONTEXT,
-          },
-          {
-            name: "",
-            type: "optional_actions",
-            flatten: true,
-            schema: [
-              {
-                name: "double_tap_action",
-                selector: { ui_action: { default_action: "none" } },
-                context: ACTION_RELATED_CONTEXT,
-              },
-            ],
-          },
+          ...actionFields,
+          ...(menuGesture === "double_tap"
+            ? []
+            : [
+                {
+                  name: "",
+                  type: "optional_actions",
+                  flatten: true,
+                  schema: [
+                    {
+                      name: "double_tap_action",
+                      selector: { ui_action: { default_action: "none" } },
+                      context: ACTION_RELATED_CONTEXT,
+                    },
+                  ],
+                },
+              ]),
         ],
       },
     ];
@@ -494,6 +645,8 @@ export class SplitButtonCardEditor extends LitElement {
       show_entity_picture: config.show_entity_picture ?? CARD_DEFAULTS.show_entity_picture,
       show_toggle: config.show_toggle ?? CARD_DEFAULTS.show_toggle,
       switch_style: config.switch_style ?? CARD_DEFAULTS.switch_style,
+      menu_close_on_action: config.menu_close_on_action ?? CARD_DEFAULTS.menu_close_on_action,
+      menu_open: "tap",
       ...(config.animation ? { animation: config.animation } : {}),
     };
   }
@@ -503,6 +656,7 @@ export class SplitButtonCardEditor extends LitElement {
     const buttons = this._config.buttons ?? [];
 
     const data = withDefaults(this._config, CARD_DEFAULTS);
+    if (typeof data.menu_back === "boolean") data.menu_back = data.menu_back ? "left" : "none";
     data.active_style = activeStyle(data);
 
     return html`
@@ -517,11 +671,7 @@ export class SplitButtonCardEditor extends LitElement {
 
       <div class="buttons">
         <h3>${this._t("buttons")}</h3>
-        ${buttons.map((button, index) => this._renderButton(button, index, buttons.length))}
-        <ha-button appearance="filled" @click=${this._addButton}>
-          <ha-svg-icon slot="start" .path=${mdiPlus}></ha-svg-icon>
-          ${this._t("add_button")}
-        </ha-button>
+        ${this._renderButtonList(buttons, [])}
       </div>
 
       <ha-form
@@ -536,7 +686,48 @@ export class SplitButtonCardEditor extends LitElement {
     `;
   }
 
-  private _renderButton(button: SegmentConfig, index: number, count: number) {
+  private _renderButtonList(buttons: SegmentConfig[], path: Path): TemplateResult {
+    return html`
+      ${buttons.map((button, index) =>
+        this._renderButton(button, [...path, index], buttons.length)
+      )}
+      <ha-button appearance="filled" @click=${() => this._addButton(path)}>
+        <ha-svg-icon slot="start" .path=${mdiPlus}></ha-svg-icon>
+        ${this._t("add_button")}
+      </ha-button>
+    `;
+  }
+
+  private _menuSchema() {
+    return [
+      {
+        name: "",
+        type: "grid",
+        schema: [
+          {
+            name: "menu_open",
+            selector: {
+              select: {
+                mode: "dropdown",
+                options: ["tap", "hold", "double_tap"].map((value) => ({
+                  value,
+                  label: this._t(`menu_open_${value}`),
+                })),
+              },
+            },
+          },
+          { name: "menu_columns", selector: { number: { min: 1, max: 12, mode: "box" } } },
+        ],
+      },
+      { name: "menu_close_on_action", selector: { boolean: {} } },
+    ];
+  }
+
+  private _renderButton(button: SegmentConfig, path: Path, count: number): TemplateResult {
+    const index = path[path.length - 1];
+    const key = path.join(".");
+    const expanded = this._expanded === key || !!this._expanded?.startsWith(`${key}.`);
+    const subButtons = button.buttons ?? [];
     const stateObj = button.entity ? this.hass!.states[button.entity] : undefined;
     const name =
       typeof button.name === "string"
@@ -554,10 +745,15 @@ export class SplitButtonCardEditor extends LitElement {
       <ha-expansion-panel
         outlined
         left-chevron
-        .expanded=${this._expanded === index}
+        .expanded=${expanded}
         .header=${name || `${this._t("button")} ${index + 1}`}
-        .secondary=${button.entity ?? ""}
-        @expanded-changed=${(ev: CustomEvent) => this._expandedChanged(ev, index)}
+        .secondary=${[
+          button.entity,
+          subButtons.length ? `${this._t("submenu")}: ${this._count(subButtons.length)}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        @expanded-changed=${(ev: CustomEvent) => this._expandedChanged(ev, key)}
       >
         ${stateObj
           ? html`<ha-state-icon
@@ -572,33 +768,33 @@ export class SplitButtonCardEditor extends LitElement {
             .label=${this._t("move_up")}
             .path=${mdiArrowUp}
             .disabled=${index === 0}
-            @click=${() => this._moveButton(index, -1)}
+            @click=${() => this._moveButton(path, -1)}
           ></ha-icon-button>
           <ha-icon-button
             .label=${this._t("move_down")}
             .path=${mdiArrowDown}
             .disabled=${index === count - 1}
-            @click=${() => this._moveButton(index, 1)}
+            @click=${() => this._moveButton(path, 1)}
           ></ha-icon-button>
           <ha-icon-button
             .label=${this._t("duplicate")}
             .path=${mdiContentCopy}
-            @click=${() => this._duplicateButton(index)}
+            @click=${() => this._duplicateButton(path)}
           ></ha-icon-button>
           <ha-icon-button
             .label=${this._t("remove")}
             .path=${mdiDelete}
-            .disabled=${count === 1}
-            @click=${() => this._removeButton(index)}
+            .disabled=${count === 1 && path.length === 1}
+            @click=${() => this._removeButton(path)}
           ></ha-icon-button>
         </div>
         <ha-form
           .hass=${this.hass}
           .data=${data}
-          .schema=${this._buttonSchema(button, data)}
+          .schema=${this._buttonSchema(button, data, path)}
           .computeLabel=${this._computeLabel}
           .computeHelper=${this._computeHelper}
-          @value-changed=${(ev: CustomEvent) => this._buttonChanged(ev, index)}
+          @value-changed=${(ev: CustomEvent) => this._buttonChanged(ev, path)}
         ></ha-form>
         <ha-expansion-panel
           class="visibility"
@@ -616,11 +812,35 @@ export class SplitButtonCardEditor extends LitElement {
             .hass=${this.hass}
             .entityId=${button.entity}
             .conditions=${button.visibility ?? []}
-            @value-changed=${(ev: CustomEvent) => this._visibilityChanged(ev, index)}
+            @value-changed=${(ev: CustomEvent) => this._visibilityChanged(ev, path)}
           ></split-button-visibility-editor>
+        </ha-expansion-panel>
+        <ha-expansion-panel
+          class="submenu"
+          outlined
+          .header=${this._t("submenu")}
+          .secondary=${subButtons.length ? this._count(subButtons.length) : ""}
+        >
+          <ha-svg-icon slot="leading-icon" .path=${mdiMenu}></ha-svg-icon>
+          <p class="help">${this._t("submenu_help")}</p>
+          ${subButtons.length
+            ? html`<ha-form
+                .hass=${this.hass}
+                .data=${data}
+                .schema=${this._menuSchema()}
+                .computeLabel=${this._computeLabel}
+                .computeHelper=${this._computeHelper}
+                @value-changed=${(ev: CustomEvent) => this._buttonChanged(ev, path)}
+              ></ha-form>`
+            : nothing}
+          <div class="buttons nested">${this._renderButtonList(subButtons, path)}</div>
         </ha-expansion-panel>
       </ha-expansion-panel>
     `;
+  }
+
+  private _count(count: number): string {
+    return `${count} ${this._t(count === 1 ? "button_count" : "buttons_count")}`;
   }
 
   private _computeLabel = (schema: { name: string }): string => {
@@ -637,6 +857,10 @@ export class SplitButtonCardEditor extends LitElement {
       case "hold_action":
         return this.hass!.localize?.("ui.panel.lovelace.editor.card.button.default_action_help");
       case "columns":
+      case "menu_columns":
+      case "menu_timeout":
+      case "menu_resize":
+      case "menu_back_size":
       case "state_display":
       case "entity_picture":
         return this._t(`${schema.name}_help`);
@@ -647,14 +871,16 @@ export class SplitButtonCardEditor extends LitElement {
     }
   };
 
-  private _expandedChanged(ev: CustomEvent, index: number): void {
+  private _expandedChanged(ev: CustomEvent, key: string): void {
     // Nested panels (conditions, interactions) fire the same event and it
     // bubbles up here; only react to the button's own panel.
     if (ev.target !== ev.currentTarget) return;
+    ev.stopPropagation();
+    const parent = key.includes(".") ? key.slice(0, key.lastIndexOf(".")) : undefined;
     if (ev.detail.expanded) {
-      this._expanded = index;
-    } else if (this._expanded === index) {
-      this._expanded = undefined;
+      if (this._expanded !== key && !this._expanded?.startsWith(`${key}.`)) this._expanded = key;
+    } else if (this._expanded === key || this._expanded?.startsWith(`${key}.`)) {
+      this._expanded = parent;
     }
   }
 
@@ -668,57 +894,102 @@ export class SplitButtonCardEditor extends LitElement {
     this._updateConfig(value as SplitButtonCardConfig);
   }
 
-  private _buttonChanged(ev: CustomEvent, index: number): void {
+  /** The buttons of a level: [] is the card, [0] the menu of button 0, … */
+  private _buttonsAt(path: Path): SegmentConfig[] {
+    let buttons = this._config!.buttons ?? [];
+    for (const index of path) buttons = buttons[index]?.buttons ?? [];
+    return buttons;
+  }
+
+  private _buttonAt(path: Path): SegmentConfig {
+    return this._buttonsAt(path.slice(0, -1))[path[path.length - 1]];
+  }
+
+  /** Replaces the buttons of a level, copying every level above it. */
+  private _setButtons(path: Path, update: (buttons: SegmentConfig[]) => SegmentConfig[]): void {
+    const apply = (buttons: SegmentConfig[], rest: Path): SegmentConfig[] => {
+      if (!rest.length) return update([...buttons]);
+      const [index, ...tail] = rest;
+      const copy = [...buttons];
+      const button = { ...copy[index] };
+      const children = apply(button.buttons ?? [], tail);
+      if (children.length) button.buttons = children;
+      else delete button.buttons;
+      copy[index] = button;
+      return copy;
+    };
+    this._updateConfig({ ...this._config!, buttons: apply(this._config!.buttons ?? [], path) });
+  }
+
+  private _updateButton(path: Path, update: (button: SegmentConfig) => SegmentConfig): void {
+    const index = path[path.length - 1];
+    this._setButtons(path.slice(0, -1), (buttons) => {
+      buttons[index] = update(buttons[index]);
+      return buttons;
+    });
+  }
+
+  private _buttonChanged(ev: CustomEvent, path: Path): void {
     ev.stopPropagation();
-    const buttons = [...this._config!.buttons];
     const defaults = this._buttonDefaults();
-    const value = stripDefaults(applyActiveStyle(ev.detail.value, defaults), buttons[index], defaults);
-    if (value.icon_height && !String(value.icon_height).endsWith("px")) {
-      value.icon_height = `${value.icon_height}px`;
-    }
-    buttons[index] = value as SegmentConfig;
-    this._updateConfig({ ...this._config!, buttons });
+    this._updateButton(path, (button) => {
+      const value = stripDefaults(applyActiveStyle(ev.detail.value, defaults), button, defaults);
+      if (value.icon_height && !String(value.icon_height).endsWith("px")) {
+        value.icon_height = `${value.icon_height}px`;
+      }
+      // The form only knows the buttons it was rendered with.
+      if (button.buttons) value.buttons = button.buttons;
+      return value as SegmentConfig;
+    });
   }
 
-  private _visibilityChanged(ev: CustomEvent, index: number): void {
+  private _visibilityChanged(ev: CustomEvent, path: Path): void {
     ev.stopPropagation();
-    const buttons = [...this._config!.buttons];
-    const button = { ...buttons[index] };
     const conditions = ev.detail.value;
-    if (Array.isArray(conditions) && conditions.length) {
-      button.visibility = conditions;
-    } else {
-      delete button.visibility;
+    this._updateButton(path, (original) => {
+      const button = { ...original };
+      if (Array.isArray(conditions) && conditions.length) {
+        button.visibility = conditions;
+      } else {
+        delete button.visibility;
+      }
+      return button;
+    });
+  }
+
+  private _addButton(path: Path): void {
+    const count = this._buttonsAt(path).length;
+    this._expanded = [...path, count].join(".");
+    this._setButtons(path, (buttons) => [...buttons, { icon: "mdi:gesture-tap-button" }]);
+  }
+
+  private _duplicateButton(path: Path): void {
+    const index = path[path.length - 1];
+    this._expanded = [...path.slice(0, -1), index + 1].join(".");
+    this._setButtons(path.slice(0, -1), (buttons) => {
+      buttons.splice(index + 1, 0, structuredClone(buttons[index]));
+      return buttons;
+    });
+  }
+
+  private _removeButton(path: Path): void {
+    const index = path[path.length - 1];
+    this._expanded = path.length > 1 ? path.slice(0, -1).join(".") : undefined;
+    this._setButtons(path.slice(0, -1), (buttons) => buttons.filter((_, i) => i !== index));
+  }
+
+  private _moveButton(path: Path, offset: number): void {
+    const index = path[path.length - 1];
+    const key = path.join(".");
+    if (this._expanded === key || this._expanded?.startsWith(`${key}.`)) {
+      const moved = [...path.slice(0, -1), index + offset].join(".");
+      this._expanded = moved + this._expanded.slice(key.length);
     }
-    buttons[index] = button;
-    this._updateConfig({ ...this._config!, buttons });
-  }
-
-  private _addButton(): void {
-    const buttons = [...(this._config!.buttons ?? []), { icon: "mdi:gesture-tap-button" }];
-    this._expanded = buttons.length - 1;
-    this._updateConfig({ ...this._config!, buttons });
-  }
-
-  private _duplicateButton(index: number): void {
-    const buttons = [...this._config!.buttons];
-    buttons.splice(index + 1, 0, structuredClone(buttons[index]));
-    this._expanded = index + 1;
-    this._updateConfig({ ...this._config!, buttons });
-  }
-
-  private _removeButton(index: number): void {
-    const buttons = this._config!.buttons.filter((_, i) => i !== index);
-    this._expanded = undefined;
-    this._updateConfig({ ...this._config!, buttons });
-  }
-
-  private _moveButton(index: number, offset: number): void {
-    const buttons = [...this._config!.buttons];
-    const [moved] = buttons.splice(index, 1);
-    buttons.splice(index + offset, 0, moved);
-    if (this._expanded === index) this._expanded = index + offset;
-    this._updateConfig({ ...this._config!, buttons });
+    this._setButtons(path.slice(0, -1), (buttons) => {
+      const [button] = buttons.splice(index, 1);
+      buttons.splice(index + offset, 0, button);
+      return buttons;
+    });
   }
 
   private _updateConfig(config: SplitButtonCardConfig): void {
@@ -758,6 +1029,15 @@ export class SplitButtonCardEditor extends LitElement {
     ha-expansion-panel.visibility {
       margin-top: 24px;
       --expansion-panel-summary-padding: 0 8px;
+    }
+
+    ha-expansion-panel.submenu {
+      margin-top: 8px;
+      --expansion-panel-summary-padding: 0 8px;
+    }
+
+    .buttons.nested {
+      margin-top: 8px;
     }
 
     ha-form.defaults {

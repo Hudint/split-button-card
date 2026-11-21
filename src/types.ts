@@ -53,7 +53,27 @@ export interface SegmentConfig {
   tap_action?: ActionConfig;
   hold_action?: ActionConfig;
   double_tap_action?: ActionConfig;
+  /** Sub-buttons: tapping this button opens them as a menu. */
+  buttons?: SegmentConfig[];
+  menu_columns?: number;
+  menu_open?: MenuGesture;
+  menu_close_on_action?: boolean;
 }
+
+export type MenuGesture = "tap" | "hold" | "double_tap";
+
+export type MenuBack =
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "top_left"
+  | "top_right"
+  | "bottom_left"
+  | "bottom_right"
+  | "start"
+  | "end"
+  | "none";
 
 export interface SplitButtonCardConfig {
   type: string;
@@ -81,4 +101,12 @@ export interface SplitButtonCardConfig {
   toggle_color?: string;
   toggle_icon_on?: string;
   toggle_icon_off?: string;
+  menu_timeout?: number;
+  menu_back?: MenuBack | boolean;
+  menu_back_icon?: string;
+  menu_back_name?: string;
+  menu_back_color?: string;
+  menu_back_size?: string;
+  menu_resize?: boolean;
+  menu_close_on_action?: boolean;
 }

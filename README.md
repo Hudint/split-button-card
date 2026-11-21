@@ -22,6 +22,7 @@ A Home Assistant dashboard card that looks exactly like the native **button card
 - Custom pictures, JavaScript templates (button-card syntax) and animations per button.
 - Switch style: the button fills with color when turned on, with a wipe animation, and separate icons for on and off.
 - Mini switch: a small version of the tile card's toggle below icon, name and state.
+- Menus: tapping a button splits it into its own sub-buttons, nested as deep as you like. The open menu is local to each browser.
 - Visual editor: configure everything in the dashboard UI, no YAML needed.
 
 ## Installation
@@ -81,6 +82,14 @@ buttons:
 | `divider_width`      | string  | card border width | Width of the divider lines, e.g. `2px`.                                                              |
 | `divider_color`      | string  | card border color | Color of the divider lines (any CSS color).                                                          |
 | `gap`                | string  | `8px`             | Spacing for `divider: gap`.                                                                          |
+| `menu_timeout`       | number  | `15`              | Seconds without interaction after which an open menu returns to the start. `0` = never.             |
+| `menu_back`          | string  | `left`            | Back button of an open menu: `left`, `right`, `top`, `bottom` (strip), `top_left`, `top_right`, `bottom_left`, `bottom_right` (round corner button), `start`, `end` (a regular button before / after the menu buttons) or `none`. |
+| `menu_back_icon`     | string  | `mdi:chevron-left` | Icon of the back button (`mdi:arrow-left` for corner and button styles).                            |
+| `menu_back_color`    | string  | secondary text    | Color of the back button (theme color or any CSS color).                                             |
+| `menu_back_size`     | string  | `32px` / `28px`   | Width of the strip or size of the corner button.                                                     |
+| `menu_back_name`     | string  | „Back“ (localized) | Text of the back button for `start` / `end`.                                                        |
+| `menu_resize`        | boolean | `false`           | Resize the card to the open menu. Otherwise it keeps the size of its largest menu.                   |
+| `menu_close_on_action` | boolean | `true`          | Return to the start after a menu button ran its action.                                              |
 
 These options can be set on the card as default for all buttons, and overridden per button:
 `show_name`, `show_icon`, `show_state`, `icon_height`, `color`, `state_color`, `state_background`, `background_opacity`, `show_entity_picture`, `state_display`, `animation`, `switch_style`, `switch_animation`, `switch_text_color`, `show_toggle`, `toggle_color`, `toggle_icon_on`, `toggle_icon_off`.
@@ -119,6 +128,10 @@ These options can be set on the card as default for all buttons, and overridden 
 | `tap_action`         | action  | `toggle` for toggleable entities, else `more-info` | Standard [Home Assistant action](https://www.home-assistant.io/dashboards/actions/).               |
 | `hold_action`        | action  | `more-info`                                        |                                                                                                     |
 | `double_tap_action`  | action  | `none`                                             |                                                                                                     |
+| `buttons`            | list    |                                                    | Sub-buttons, see [Menus](#menus). Same options as a button.                                         |
+| `menu_open`          | string  | `tap`                                              | Gesture that opens the menu: `tap`, `hold` or `double_tap`.                                         |
+| `menu_columns`       | number  | number of buttons                                  | Grid columns of the menu.                                                                           |
+| `menu_close_on_action` | boolean | card setting                                     | Overrides `menu_close_on_action` for this menu.                                                     |
 
 ### Switch style
 
@@ -150,6 +163,53 @@ buttons:
 ```
 
 The whole button stays the switch; the mini switch shows the state. Its size can be changed with `--sbc-toggle-width`, `--sbc-toggle-height` and `--sbc-toggle-radius`.
+
+### Menus
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/menu-dark.gif">
+  <img alt="A button opening its menu" src="docs/menu-light.gif" width="500">
+</picture>
+
+A button with its own `buttons` becomes a menu: tapping it replaces the card's buttons with its sub-buttons, which split out of the tapped button. Menus can be nested. A back button returns one level (strip on any side, corner button or a regular button, see `menu_back`), and the menu closes on its own after an action or after `menu_timeout` seconds. Which menu is open is kept in the browser only, so everybody using the dashboard navigates independently.
+
+```yaml
+type: custom:split-button-card
+buttons:
+  - entity: vacuum.robi
+    name: Staubsauger
+    show_state: true
+    state_display: "[[[ return entity.state === 'cleaning' ? 'Läuft gerade' : 'Läuft um 10:00'; ]]]"
+    buttons:
+      - name: Jetzt starten
+        icon: mdi:play
+        tap_action:
+          action: perform-action
+          perform_action: vacuum.start
+          target: { entity_id: vacuum.robi }
+      - name: Heute auslassen
+        icon: mdi:calendar-remove
+        tap_action:
+          action: toggle
+          entity: input_boolean.robi_skip_today
+      - name: Raum
+        icon: mdi:floor-plan
+        buttons:
+          - name: Küche
+            icon: mdi:countertop
+            tap_action:
+              action: perform-action
+              perform_action: script.robi_clean_room
+              data: { room: kitchen }
+          - name: Bad
+            icon: mdi:shower
+            tap_action:
+              action: perform-action
+              perform_action: script.robi_clean_room
+              data: { room: bathroom }
+```
+
+By default the card keeps the size of its largest menu, so the dashboard does not move. With `menu_resize: true` it grows and shrinks with the open menu in sections dashboards (unless the card has a fixed size under *Layout*). The corner button's background can be changed with `--sbc-back-background`.
 
 ### Templates
 
